@@ -1,0 +1,32 @@
+{% extends 'admin/base.html' %}
+{% block title %}Импорт #{{ job['id'] }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Импорт #{{ job['id'] }}</h1>
+  <a class="btn btn-light" href="{{ url_for('admin.imports_page') }}">Назад к импортам</a>
+</div>
+
+<p><strong>Файл:</strong> {{ job['file_name'] }}</p>
+<p><strong>Статус:</strong> {{ job['status'] }}</p>
+<p><strong>Результат:</strong> {{ job['message'] }}</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>URL</th><th>Статус</th><th>Сообщение</th><th>ID стажировки</th></tr></thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td class="mono">{{ item['url'] }}</td>
+      <td>{{ item['status'] }}</td>
+      <td>{{ item['message'] or '' }}</td>
+      <td>
+        {% if item['internship_id'] %}
+          <a href="{{ url_for('admin.edit_internship', internship_id=item['internship_id']) }}">{{ item['internship_id'] }}</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

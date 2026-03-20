@@ -1,7 +1,41 @@
-.vscode/
-__pycache__/
-*.pyc
+# Env and secrets
 .env
-.venv/
-internships.db
+.env.local
+.env.*.local
 
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+
+# Databases / local artifacts
+*.db
+*.sqlite
+*.sqlite3
+
+# Node
+node_modules/
+
+# Build artifacts
+build/
+dist/
+coverage/
+*.egg-info/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# Logs and temp
+*.log
+tmp/
+.temp/

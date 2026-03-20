@@ -1,0 +1,28 @@
+{% extends 'public/base.html' %}
+{% block title %}InternStart | Главная{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Стажировки для студентов</h1>
+  <p>Публичный каталог стажировок, практики и первой работы.</p>
+  <a class="btn" href="{{ url_for('public.catalog') }}">Открыть каталог</a>
+</section>
+
+<h2>Последние опубликованные стажировки</h2>
+<div class="cards-grid">
+  {% for internship in latest %}
+    <article class="card">
+      <h3>{{ internship['title'] }}</h3>
+      <p class="muted">{{ internship['company_name'] }} • {{ internship['city'] }}</p>
+      {% if internship['ai_generated'] and internship['needs_review'] %}
+        <p class="badge badge-ai">Найдено ИИ · {{ internship['ai_generated_at']|display_date }}</p>
+      {% elif internship['ai_generated'] and not internship['needs_review'] %}
+        <p class="badge badge-ok">Проверено человеком · {{ internship['last_verified_at']|display_date }}</p>
+      {% else %}
+        <p class="muted">Создано: {{ internship['created_at']|display_date }}</p>
+      {% endif %}
+      <p>{{ internship['short_description'] }}</p>
+      <a class="btn btn-light" href="{{ url_for('public.detail', internship_id=internship['id']) }}">Подробнее</a>
+    </article>
+  {% endfor %}
+</div>
+{% endblock %}
