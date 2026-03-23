@@ -23,3 +23,23 @@ STATUS_LABELS = {
 }
 
 CREATED_BY_TYPES = ["human", "ai"]
+
+APPLICATION_STATUSES = [
+    "want_to_apply",
+    "applied",
+    "test",
+    "interview",
+    "offer",
+    "rejected",
+    "archived",
+]
+
+APPLICATION_STATUS_LABELS = {
+    "want_to_apply": "Хочу податься",
+    "applied": "Подал",
+    "test": "Тест",
+    "interview": "Интервью",
+    "offer": "Оффер",
+    "rejected": "Отказ",
+    "archived": "Архив",
+}

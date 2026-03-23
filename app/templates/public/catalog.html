@@ -2,8 +2,8 @@
 {% block title %}InternStart | Каталог{% endblock %}
 {% block content %}
 <h1>Каталог стажировок</h1>
-<form method="get" class="filters">
-  <div class="field"><label>Поиск</label><input name="q" value="{{ filters.q }}" placeholder="Компания, направление, ключевые слова"></div>
+<form method="get" class="filters command-panel">
+  <div class="field search-row"><label>Поиск</label><input name="q" value="{{ filters.q }}" placeholder="Компания, направление, ключевые слова"></div>
   <div class="field"><label>Город</label>
     <select name="city"><option value="">Все</option>{% for city in cities %}<option value="{{ city }}" {% if filters.city == city %}selected{% endif %}>{{ city }}</option>{% endfor %}</select>
   </div>
@@ -14,9 +14,9 @@
     <select name="direction"><option value="">Любое</option>{% for value in directions %}<option value="{{ value }}" {% if filters.direction == value %}selected{% endif %}>{{ value }}</option>{% endfor %}</select>
   </div>
   <div class="field"><label>Оплата</label>
-    <select name="paid"><option value="">Любая</option><option value="1" {% if filters.paid == '1' %}selected{% endif %}>Оплачиваемая</option><option value="0" {% if filters.paid == '0' %}selected{% endif %}>Не оплачиваемая</option></select>
+    <select name="paid"><option value="">Любая</option><option value="1" {% if filters.paid == '1' %}selected{% endif %}>Оплачиваемая</option><option value="0" {% if filters.paid == '0' %}selected{% endif %}>Не оплачиваемая</option><option value="-1" {% if filters.paid == '-1' %}selected{% endif %}>Не указано</option></select>
   </div>
-  <div class="field"><label>Дедлайн</label>
+  <div class="field"><label>Дата</label>
     <select name="deadline"><option value="">Любой</option><option value="has_deadline" {% if filters.deadline == 'has_deadline' %}selected{% endif %}>Есть дедлайн</option><option value="open_enrollment" {% if filters.deadline == 'open_enrollment' %}selected{% endif %}>Набор открыт</option><option value="unknown" {% if filters.deadline == 'unknown' %}selected{% endif %}>Сроки не указаны</option></select>
   </div>
   <div class="field"><label>Сортировка</label>
@@ -26,12 +26,24 @@
 </form>
 
 {% if internships %}
-<div class="cards-grid">
+<div class="cards-grid internships-grid">
   {% for internship in internships %}
-  <article class="card">
+  <article class="card company-themed internship-card" style="{{ company_card_style(internship['company_accent_color']) }}">
+    <div class="card-company-head">
+      {% if internship['company_display_logo'] %}
+        <img class="company-logo" src="{{ url_for('static', filename=internship['company_display_logo']) }}" alt="{{ internship['company_display_name'] }}">
+      {% endif %}
+      <p class="muted company-name-line">
+        {% if internship['company_slug'] %}
+          <a href="{{ url_for('public.company_detail', slug=internship['company_slug']) }}">{{ internship['company_display_name'] }}</a>
+        {% else %}
+          {{ internship['company_display_name'] }}
+        {% endif %}
+        • {{ internship['city'] }}
+      </p>
+    </div>
     <h3>{{ internship['title'] }}</h3>
-    <p class="muted">{{ internship['company_name'] }} • {{ internship['city'] }}</p>
-    <p class="tags"><span>{{ work_format_labels[internship['work_format']] }}</span><span>{{ internship['direction'] }}</span><span>{{ 'Оплачиваемая' if internship['is_paid'] else 'Не оплачиваемая' }}</span></p>
+    <p class="tags"><span>{{ work_format_labels[internship['work_format']] }}</span><span>{{ internship['direction'] }}</span><span>{% if internship['is_paid']|int == 1 %}Оплачиваемая{% elif internship['is_paid']|int == 0 %}Не оплачиваемая{% else %}Оплата: не указано{% endif %}</span></p>
     {% if internship['ai_generated'] and internship['needs_review'] %}
       <p class="badge badge-ai">Найдено ИИ · {{ internship['ai_generated_at']|display_date }}</p>
     {% elif internship['ai_generated'] and not internship['needs_review'] %}
@@ -39,8 +51,9 @@
     {% else %}
       <p class="muted">Создано: {{ internship['created_at']|display_date }}</p>
     {% endif %}
-    <p class="muted">Дедлайн: {{ internship['deadline_date'] or 'Не указан' }}</p>
-    <p>{{ internship['short_description'] }}</p>
+    <p class="muted">Дата: {{ internship['deadline_date'] or 'Не указана' }}</p>
+    <p class="short-desc">{{ internship['short_description'] }}</p>
+    <div class="internship-accent-under"></div>
     <a class="btn btn-light" href="{{ url_for('public.detail', internship_id=internship['id']) }}">Подробнее</a>
   </article>
   {% endfor %}

@@ -1,28 +1,64 @@
 {% extends 'public/base.html' %}
 {% block title %}InternStart | Главная{% endblock %}
+{% block main_class %}home-main{% endblock %}
 {% block content %}
-<section class="hero">
-  <h1>Стажировки для студентов</h1>
-  <p>Публичный каталог стажировок, практики и первой работы.</p>
-  <a class="btn" href="{{ url_for('public.catalog') }}">Открыть каталог</a>
-</section>
+<div class="home-page">
+  <section class="hero">
+    <h1>Личный трекер стажировок</h1>
+    <p>Сохраняйте интересные позиции, ведите этапы отклика и держите весь процесс в одной доске.</p>
+    <div class="actions">
+      <a class="btn" href="{{ url_for('public.applications_board') }}">Открыть мои подачи</a>
+      <a class="btn btn-light" href="{{ url_for('public.catalog') }}">Перейти в каталог</a>
+    </div>
+  </section>
 
-<h2>Последние опубликованные стажировки</h2>
-<div class="cards-grid">
-  {% for internship in latest %}
-    <article class="card">
-      <h3>{{ internship['title'] }}</h3>
-      <p class="muted">{{ internship['company_name'] }} • {{ internship['city'] }}</p>
-      {% if internship['ai_generated'] and internship['needs_review'] %}
-        <p class="badge badge-ai">Найдено ИИ · {{ internship['ai_generated_at']|display_date }}</p>
-      {% elif internship['ai_generated'] and not internship['needs_review'] %}
-        <p class="badge badge-ok">Проверено человеком · {{ internship['last_verified_at']|display_date }}</p>
-      {% else %}
-        <p class="muted">Создано: {{ internship['created_at']|display_date }}</p>
-      {% endif %}
-      <p>{{ internship['short_description'] }}</p>
-      <a class="btn btn-light" href="{{ url_for('public.detail', internship_id=internship['id']) }}">Подробнее</a>
-    </article>
-  {% endfor %}
+  <section class="home-guide">
+    <h2>Как пользоваться сайтом</h2>
+    <div class="home-timeline">
+      <article class="timeline-step">
+        <div class="timeline-step-number">1</div>
+        <h3>Найти стажировку</h3>
+        <p>Откройте <a href="{{ url_for('public.catalog') }}">каталог</a>, примените поиск и фильтры.</p>
+      </article>
+      <article class="timeline-step">
+        <div class="timeline-step-number">2</div>
+        <h3>Добавить в трекер</h3>
+        <p>На карточке стажировки нажмите «Добавить в мои подачи».</p>
+      </article>
+      <article class="timeline-step">
+        <div class="timeline-step-number">3</div>
+        <h3>Вести этапы</h3>
+        <p>Перемещайте по канбану и фиксируйте комментарии в истории.</p>
+      </article>
+      <article class="timeline-step">
+        <div class="timeline-step-number">4</div>
+        <h3>Закрывать цикл</h3>
+        <p>Оффер или отказ сохраняются в трекере, завершённые заявки уходят в архив.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="home-guide">
+    <h2>Быстрые действия</h2>
+    <div class="quick-actions">
+      <a class="quick-action" href="{{ url_for('public.applications_board') }}">
+        <span class="quick-action-title">Мои подачи</span>
+        <span class="quick-action-text">Основная Kanban-доска со всеми активными откликами</span>
+      </a>
+      <a class="quick-action" href="{{ url_for('public.applications_board', view='archive') }}">
+        <span class="quick-action-title">Архив</span>
+        <span class="quick-action-text">Скрытые и завершённые подачи</span>
+      </a>
+      <a class="quick-action" href="{{ url_for('public.catalog') }}">
+        <span class="quick-action-title">Каталог стажировок</span>
+        <span class="quick-action-text">Публичные карточки от компаний</span>
+      </a>
+      <a class="quick-action" href="{{ url_for('public.companies') }}">
+        <span class="quick-action-title">Компании</span>
+        <span class="quick-action-text">Профили компаний и открытые направления</span>
+      </a>
+    </div>
+  </section>
 </div>
+
 {% endblock %}

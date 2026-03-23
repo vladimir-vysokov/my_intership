@@ -3,7 +3,19 @@
 {% block content %}
 <article class="detail">
   <h1>{{ internship['title'] }}</h1>
-  <p class="muted">{{ internship['company_name'] }} • {{ internship['city'] }}</p>
+  <div class="company-inline company-themed" style="{{ company_card_style(internship['company_accent_color']) }}">
+    {% if internship['company_display_logo'] %}
+      <img class="company-logo" src="{{ url_for('static', filename=internship['company_display_logo']) }}" alt="{{ internship['company_display_name'] }}">
+    {% endif %}
+    <p class="muted company-name-line">
+      {% if internship['company_slug'] %}
+        <a href="{{ url_for('public.company_detail', slug=internship['company_slug']) }}">{{ internship['company_display_name'] }}</a>
+      {% else %}
+        {{ internship['company_display_name'] }}
+      {% endif %}
+      • {{ internship['city'] }}
+    </p>
+  </div>
   <p class="tags"><span>{{ work_format_labels[internship['work_format']] }}</span><span>{{ internship['direction'] }}</span><span>{{ status_labels[internship['status']] }}</span></p>
 
   {% if internship['ai_generated'] and internship['needs_review'] %}
@@ -13,12 +25,15 @@
   {% else %}
     <p class="muted">Создано: {{ internship['created_at']|display_date }}</p>
   {% endif %}
+  {% if selected_attempt_number %}
+    <p class="badge badge-ok">Подача №{{ selected_attempt_number }}</p>
+  {% endif %}
 
   <div class="detail-grid">
     <div><strong>Тип занятости:</strong> {{ internship['employment_type'] }}</div>
-    <div><strong>Оплата:</strong> {{ 'Оплачиваемая' if internship['is_paid'] else 'Не оплачиваемая' }}</div>
+    <div><strong>Оплата:</strong> {% if internship['is_paid']|int == 1 %}Оплачиваемая{% elif internship['is_paid']|int == 0 %}Не оплачиваемая{% else %}Не указано{% endif %}</div>
     <div><strong>Размер оплаты:</strong> {{ internship['salary_info'] or 'Не указано' }}</div>
-    <div><strong>Дедлайн:</strong> {{ internship['deadline_date'] or 'Не указан' }}</div>
+    <div><strong>Дата:</strong> {{ internship['deadline_date'] or 'Не указана' }}</div>
   </div>
 
   <h2>Описание</h2>
@@ -33,9 +48,44 @@
   <h3>Условия</h3>
   <p>{{ (internship['conditions'] or 'Не указаны')|replace('\n', '<br>')|safe }}</p>
 
+  {% if internship['company_internship_info'] %}
+  <section class="company-info-block company-themed" style="{{ company_card_style(internship['company_accent_color']) }}">
+    <h3>О стажировках в компании</h3>
+    <p>{{ internship['company_internship_info']|replace('\n', '<br>')|safe }}</p>
+  </section>
+  {% endif %}
+
+  {% if internship['company_application_notes'] %}
+  <section class="company-info-block company-themed" style="{{ company_card_style(internship['company_accent_color']) }}">
+    <h3>Особенности подачи</h3>
+    <p>{{ internship['company_application_notes']|replace('\n', '<br>')|safe }}</p>
+  </section>
+  {% endif %}
+
   <div class="actions">
-    <a class="btn" target="_blank" rel="noopener noreferrer" href="{{ internship['application_url'] or internship['source_url'] }}">Перейти к отклику</a>
-    <a class="btn btn-light" target="_blank" rel="noopener noreferrer" href="{{ internship['source_url'] }}">Источник</a>
+    {% if application %}
+      <span class="badge badge-ok">Последняя подача: {{ application_status_labels[application['status']] }}</span>
+      <a class="btn btn-light" href="{{ url_for('public.edit_application', application_id=application['id']) }}">Обновить подачу</a>
+      <a class="btn btn-light" href="{{ url_for('public.applications_board') }}">Открыть доску</a>
+      <form method="post" action="{{ url_for('public.add_to_tracker', internship_id=internship['id']) }}" onsubmit="return confirm('Вы уже подавались на эту стажировку. Создать Подачу №{{ attempts_count + 1 }}?');">
+        <input type="hidden" name="confirm_reapply" value="1">
+        <button class="btn" type="submit">Податься еще раз</button>
+      </form>
+      <form method="post" action="{{ url_for('public.archive_application', application_id=application['id']) }}">
+        <button class="btn btn-light" type="submit">Добавить в мой архив</button>
+      </form>
+    {% else %}
+      <form method="post" action="{{ url_for('public.add_to_tracker', internship_id=internship['id']) }}" {% if attempts_count and attempts_count|int > 0 %}onsubmit="return confirm('Вы уже подавались на эту стажировку. Создать новую подачу?');"{% endif %}>
+        {% if attempts_count and attempts_count|int > 0 %}
+          <input type="hidden" name="confirm_reapply" value="1">
+        {% endif %}
+        <button class="btn" type="submit">Добавить в мои подачи</button>
+      </form>
+      <form method="post" action="{{ url_for('public.archive_from_internship', internship_id=internship['id']) }}">
+        <button class="btn btn-light" type="submit">Добавить в мой архив</button>
+      </form>
+    {% endif %}
+    <a class="btn" target="_blank" rel="noopener noreferrer" href="{{ internship['source_url'] }}">Перейти к отклику</a>
   </div>
 </article>
 {% endblock %}

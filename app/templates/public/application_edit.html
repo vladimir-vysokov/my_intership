@@ -1,0 +1,245 @@
+{% extends 'public/base.html' %}
+{% block title %}Редактирование подачи | InternStart{% endblock %}
+{% block content %}
+<section class="application-layout">
+  <aside class="application-aside detail">
+    <div class="application-aside-head">
+      <h1>Подача №{{ current_attempt_number }}</h1>
+      <span class="status-chip">{{ application_status_labels[application['status']] }}</span>
+    </div>
+    <p class="application-role">{{ application['internship_title'] }}</p>
+    <p class="muted">{{ application['company_display_name'] }}</p>
+
+    <div class="actions application-side-actions">
+      <a class="btn" href="{{ url_for('public.applications_board') }}">К доске</a>
+      <a class="btn btn-light" href="{{ url_for('public.detail', internship_id=application['internship_id'], attempt_id=application['id']) }}">К стажировке</a>
+    </div>
+
+    <form method="post" class="admin-form application-edit-form application-edit-inline">
+      <div class="field">
+        <label>Дата подачи</label>
+        <input type="date" name="applied_at" value="{{ application['applied_at'] or '' }}">
+      </div>
+
+      <div class="field">
+        <label>Дата выполнения</label>
+        <input type="date" name="next_step_date" value="{{ application['next_step_date'] or '' }}">
+      </div>
+
+      <div class="field">
+        <label>Время (опционально)</label>
+        <input type="time" name="next_step_time" value="{{ application['next_step_time'] or '' }}">
+      </div>
+
+      <div class="field marker-controls">
+        <div class="marker-line">
+          <label class="marker-check">
+            <input
+              id="marker_enabled"
+              type="checkbox"
+              name="marker_enabled"
+              value="1"
+              {% if application['marker_enabled']|int != 0 %}checked{% endif %}
+            >
+            Показывать маркер выполнения этапа
+          </label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Заметка</label>
+        <textarea name="note" rows="3" placeholder="Свободные заметки по отклику">{{ application['note'] or '' }}</textarea>
+      </div>
+
+      <div class="actions application-edit-actions">
+        <button class="btn" type="submit">Сохранить</button>
+        <button
+          class="btn btn-danger"
+          type="submit"
+          formaction="{{ url_for('public.delete_application', application_id=application['id']) }}"
+          formmethod="post"
+          onclick="return confirm('Удалить стажировку из канбан-доски?');"
+        >Удалить</button>
+      </div>
+    </form>
+  </aside>
+
+  <section class="application-history detail">
+    <div class="history-head">
+      <h2>История подач</h2>
+      <p class="muted">Главный фокус: этапы, дедлайны, комментарии и прогресс.</p>
+    </div>
+    {% for item in attempts %}
+      <details class="attempt-panel" {% if item.is_current %}open{% endif %}>
+        <summary>
+          <strong>Подача №{{ item.number }}</strong>
+          <span class="muted">Текущий этап: {{ application_status_labels[item.attempt['status']] }}</span>
+        </summary>
+
+        <div class="attempt-actions">
+          {% if item.is_current %}
+            <form method="post" action="{{ url_for('public.delete_application', application_id=item.attempt['id']) }}" onsubmit="return confirm('Удалить Подачу №{{ item.number }}?');">
+              <button class="btn btn-danger btn-small" type="submit">Удалить подачу</button>
+            </form>
+          {% else %}
+            <span class="muted">Только просмотр (неактивная подача)</span>
+          {% endif %}
+        </div>
+
+        {% if item.is_current %}
+          <form method="post" action="{{ url_for('public.add_attempt_event', application_id=item.attempt['id']) }}" class="attempt-event-form">
+            <button class="btn btn-light btn-small" type="submit">Добавить этап</button>
+          </form>
+        {% endif %}
+
+        <ul class="attempt-timeline">
+          {% for event in item.history %}
+            <li class="timeline-item">
+              <div class="timeline-item-head">
+                {% if event['event_type'] == 'test' %}
+                  <span class="timeline-kind">Тест</span>
+                {% elif event['event_type'] == 'interview' %}
+                  <span class="timeline-kind">Интервью</span>
+                {% elif event['event_type'] == 'completion' %}
+                  <span class="timeline-kind">Выполнение</span>
+                {% elif event['event_type'] == 'stage_note' %}
+                  <span class="timeline-kind">Комментарий</span>
+                {% elif event['event_type'] == 'create' %}
+                  <span class="timeline-kind">Создано</span>
+                {% else %}
+                  <span class="timeline-kind">Этап</span>
+                {% endif %}
+                <span class="timeline-time mono">{{ (event['created_at'] or '')|replace('T', ' ')|replace('Z', '') }}</span>
+              </div>
+
+              <div class="timeline-item-body">
+                {% if event['event_type'] == 'completion' %}
+                  <strong>{{ event['event_note'] or 'Статус выполнения этапа изменен' }}</strong>
+                {% elif event['from_status'] and event['to_status'] %}
+                  <strong>{{ application_status_labels.get(event['from_status'], event['from_status']) }} → {{ application_status_labels.get(event['to_status'], event['to_status']) }}</strong>
+                {% elif event['event_type'] == 'create' %}
+                  <strong>Подача создана</strong>
+                {% elif event['event_type'] == 'stage_note' %}
+                  <strong>Комментарий к текущему этапу</strong>
+                {% endif %}
+
+                {% if item.is_current %}
+                  <div class="timeline-event-meta">
+                    {% if loop.last and item.attempt['next_step_date'] %}
+                      <span class="timeline-meta-chip">
+                        Дата: {{ item.attempt['next_step_date']|display_date }}{% if item.attempt['next_step_time'] %} {{ item.attempt['next_step_time'] }}{% endif %}
+                      </span>
+                    {% endif %}
+                    {% if item.attempt['marker_enabled']|int == 1 and item.attempt['status'] != 'want_to_apply' and item['checkbox_event_id'] %}
+                      <span class="timeline-meta-chip timeline-meta-chip-check">
+                        {% if event['id'] == item['checkbox_event_id'] %}
+                          <form method="post" action="{{ url_for('public.update_attempt_event_completion', application_id=item.attempt['id'], event_id=event['id']) }}" class="timeline-complete-form">
+                            <input type="hidden" name="stage_completed" value="{% if item.attempt['stage_completed']|int == 1 %}0{% else %}1{% endif %}">
+                            <label class="timeline-complete-toggle">
+                              <input type="checkbox" {% if item.attempt['stage_completed']|int == 1 %}checked{% endif %} onchange="this.form.submit()">
+                              <span>Этап выполнен</span>
+                            </label>
+                          </form>
+                        {% endif %}
+                      </span>
+                    {% endif %}
+                  </div>
+                {% endif %}
+
+                {% if item.is_current %}
+                  {% if event['event_note'] %}
+                    <button
+                      class="timeline-inline-comment-read timeline-comment-toggle timeline-comment-inline-trigger"
+                      type="button"
+                      data-target="event-comment-{{ event['id'] }}"
+                    >{{ event['event_note'] }}</button>
+                  {% endif %}
+                  {% if not event['event_note'] %}
+                    <button
+                      class="btn btn-light btn-small timeline-comment-toggle"
+                      type="button"
+                      data-target="event-comment-{{ event['id'] }}"
+                    >Добавить комментарий</button>
+                  {% endif %}
+                  <form
+                    method="post"
+                    action="{{ url_for('public.update_attempt_event_comment', application_id=item.attempt['id'], event_id=event['id']) }}"
+                    class="timeline-inline-comment-form is-hidden"
+                    id="event-comment-{{ event['id'] }}"
+                  >
+                    <textarea
+                      name="event_note"
+                      rows="1"
+                      maxlength="500"
+                      class="timeline-inline-comment-input"
+                      placeholder="Комментарий к этому этапу"
+                    >{{ event['event_note'] or '' }}</textarea>
+                    <div class="timeline-inline-actions">
+                      <button class="btn btn-light btn-small" type="submit">Сохранить</button>
+                    </div>
+                  </form>
+                {% elif event['event_note'] %}
+                  <div class="timeline-inline-comment-read">{{ event['event_note'] }}</div>
+                {% endif %}
+
+                {% if item.is_current and event['event_type'] != 'create' and loop.last %}
+                  <form method="post" action="{{ url_for('public.delete_attempt_event', application_id=item.attempt['id'], event_id=event['id']) }}" class="timeline-delete-form">
+                    <input type="hidden" name="confirm_rollback" value="0">
+                    {% set needs_rollback = event['event_type'] == 'move' and event['to_status'] == item.attempt['status'] and event['from_status'] %}
+                    {% if needs_rollback %}
+                      <button
+                        class="btn btn-light btn-small"
+                        type="submit"
+                        onclick="if(confirm('Удаление этого этапа вернет подачу на {{ application_status_labels.get(event['from_status'], event['from_status']) }}. Продолжить?')){this.form.querySelector('[name=confirm_rollback]').value='1';return true;}return false;"
+                      >Удалить этап</button>
+                    {% else %}
+                      <button class="btn btn-light btn-small" type="submit" onclick="return confirm('Удалить этап из истории?');">Удалить этап</button>
+                    {% endif %}
+                  </form>
+                {% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </details>
+    {% endfor %}
+  </section>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const commentInputs = document.querySelectorAll(".timeline-inline-comment-input");
+  const commentToggles = document.querySelectorAll(".timeline-comment-toggle");
+  commentToggles.forEach((toggle) => {
+    toggle.addEventListener("click", () => {
+      const targetId = toggle.getAttribute("data-target");
+      if (!targetId) return;
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.classList.toggle("is-hidden");
+      if (!target.classList.contains("is-hidden")) {
+        const textarea = target.querySelector(".timeline-inline-comment-input");
+        if (textarea) {
+          textarea.focus();
+          textarea.selectionStart = textarea.value.length;
+          textarea.selectionEnd = textarea.value.length;
+          textarea.dispatchEvent(new Event("input"));
+        }
+      }
+    });
+  });
+
+  const fitHeight = (el) => {
+    el.style.height = "38px";
+    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+  };
+  commentInputs.forEach((el) => {
+    fitHeight(el);
+    el.addEventListener("focus", () => fitHeight(el));
+    el.addEventListener("input", () => fitHeight(el));
+  });
+})();
+</script>
+{% endblock %}

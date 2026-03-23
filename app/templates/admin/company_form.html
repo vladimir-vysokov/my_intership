@@ -1,0 +1,73 @@
+{% extends 'admin/base.html' %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ page_title }}</h1>
+  <a class="btn btn-light" href="{{ url_for('admin.companies') }}">Назад</a>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="admin-form">
+  {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+
+  <div class="field"><label>Название</label><input name="name" value="{{ form_data['name'] }}" required></div>
+  <div class="field"><label>Slug</label><input name="slug" value="{{ form_data['slug'] }}" required placeholder="company-slug"></div>
+
+  <div class="field">
+    <label>Логотип (PNG)</label>
+    <input type="file" name="logo_file" accept=".png,image/png">
+    {% if logo_path %}
+      <div class="logo-preview-wrap">
+        <img class="logo-preview" src="{{ url_for('static', filename=logo_path) }}" alt="Логотип компании">
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="field"><label>Website URL</label><input name="website_url" value="{{ form_data['website_url'] or '' }}" placeholder="https://..."></div>
+  <div class="field"><label>Career URL</label><input name="career_url" value="{{ form_data['career_url'] or '' }}" placeholder="https://..."></div>
+  <div class="field">
+    <label>Accent Color</label>
+    <div class="color-picker-row">
+      <input
+        id="accent_color_picker"
+        class="color-picker-square"
+        type="color"
+        value="{{ normalize_hex_color(form_data['accent_color']) }}"
+        aria-label="Выбор акцентного цвета"
+      >
+      <input
+        id="accent_color_text"
+        class="color-hex-input"
+        name="accent_color"
+        value="{{ normalize_hex_color(form_data['accent_color']) }}"
+        placeholder="#0e7490"
+      >
+    </div>
+  </div>
+  <div class="field"><label>Активна</label><select name="is_active"><option value="1" {% if form_data['is_active']|int == 1 %}selected{% endif %}>Да</option><option value="0" {% if form_data['is_active']|int == 0 %}selected{% endif %}>Нет</option></select></div>
+
+  <div class="field"><label>Описание компании</label><textarea name="description" rows="4">{{ form_data['description'] or '' }}</textarea></div>
+  <div class="field"><label>Информация о стажировках</label><textarea name="internship_info" rows="4">{{ form_data['internship_info'] or '' }}</textarea></div>
+  <div class="field"><label>Особенности подачи</label><textarea name="application_notes" rows="4">{{ form_data['application_notes'] or '' }}</textarea></div>
+
+  <div class="actions"><button class="btn" type="submit">Сохранить</button></div>
+</form>
+
+<script>
+  (function () {
+    const picker = document.getElementById("accent_color_picker");
+    const text = document.getElementById("accent_color_text");
+    if (!picker || !text) return;
+
+    picker.addEventListener("input", () => {
+      text.value = picker.value;
+    });
+
+    text.addEventListener("input", () => {
+      const v = text.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+        picker.value = v;
+      }
+    });
+  })();
+</script>
+{% endblock %}

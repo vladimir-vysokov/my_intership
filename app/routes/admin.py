@@ -1,4 +1,10 @@
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+import os
+import re
+import unicodedata
+import uuid
+
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+from werkzeug.utils import secure_filename
 
 from app.auth import admin_config_ready, admin_login_required, verify_admin_credentials
 from app.constants import DIRECTIONS, STATUSES, WORK_FORMATS
@@ -7,21 +13,120 @@ from app.services.import_service import run_import
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
+HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+MAX_SHORT_DESCRIPTION_LEN = 220
+
 
 def parse_date(value: str | None):
     return value.strip() if value and value.strip() else None
 
 
-def collect_form_data():
+def parse_int(value: str | None):
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def normalize_slug(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    normalized = normalized.lower().strip()
+    normalized = re.sub(r"[^a-z0-9]+", "-", normalized).strip("-")
+    return normalized
+
+
+def normalize_accent_color(value: str | None) -> str:
+    candidate = (value or "").strip()
+    if not candidate:
+        return "#0e7490"
+    if not candidate.startswith("#"):
+        candidate = f"#{candidate}"
+    candidate = candidate.lower()
+    if HEX_COLOR_RE.match(candidate):
+        return candidate
+    return "#0e7490"
+
+
+def safe_admin_next_url(value: str | None) -> str | None:
+    if not value:
+        return None
+    value = value.strip()
+    if value.startswith("/admin/"):
+        return value
+    return None
+
+
+def save_company_logo(file_storage, company_slug: str):
+    if not file_storage or not file_storage.filename:
+        return None
+
+    safe_name = secure_filename(file_storage.filename)
+    extension = os.path.splitext(safe_name)[1].lower()
+    if extension != ".png":
+        raise ValueError("Логотип должен быть в формате PNG.")
+
+    uploads_dir = os.path.join(current_app.static_folder, "uploads", "company_logos")
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    slug_part = normalize_slug(company_slug) or "company"
+    filename = f"{slug_part}-{uuid.uuid4().hex[:12]}.png"
+    full_path = os.path.join(uploads_dir, filename)
+    file_storage.save(full_path)
+
+    return f"uploads/company_logos/{filename}"
+
+
+def get_company_for_internship(db, company_id: int | None):
+    if not company_id:
+        return None
+    return db.execute(
+        "SELECT id, name, logo_path, is_active FROM companies WHERE id = ?",
+        (company_id,),
+    ).fetchone()
+
+
+def fetch_companies_for_select(db, selected_company_id: int | None = None):
+    if selected_company_id:
+        return db.execute(
+            """
+            SELECT id, name, is_active
+            FROM companies
+            WHERE is_active = 1 OR id = ?
+            ORDER BY name COLLATE NOCASE ASC
+            """,
+            (selected_company_id,),
+        ).fetchall()
+    return db.execute(
+        """
+        SELECT id, name, is_active
+        FROM companies
+        WHERE is_active = 1
+        ORDER BY name COLLATE NOCASE ASC
+        """
+    ).fetchall()
+
+
+def collect_internship_form_data():
+    paid_raw = request.form.get("is_paid", "").strip()
+    is_paid = -1
+    if paid_raw == "1":
+        is_paid = 1
+    elif paid_raw == "0":
+        is_paid = 0
+
     return {
         "title": request.form.get("title", "").strip(),
-        "company_name": request.form.get("company_name", "").strip(),
-        "company_logo_url": request.form.get("company_logo_url", "").strip() or None,
+        "company_id": parse_int(request.form.get("company_id")),
         "city": request.form.get("city", "").strip(),
         "work_format": request.form.get("work_format", "").strip(),
         "direction": request.form.get("direction", "").strip(),
         "employment_type": request.form.get("employment_type", "").strip(),
-        "is_paid": 1 if request.form.get("is_paid") == "1" else 0,
+        "is_paid": is_paid,
         "salary_info": request.form.get("salary_info", "").strip() or None,
         "deadline_date": parse_date(request.form.get("deadline_date")),
         "short_description": request.form.get("short_description", "").strip(),
@@ -36,19 +141,87 @@ def collect_form_data():
     }
 
 
-def validate_form(data):
+def validate_internship_form(db, data):
     errors = []
-    required = ["title", "company_name", "city", "short_description", "full_description", "source_url"]
+    required = ["title", "city", "short_description", "full_description", "source_url"]
     for field in required:
         if not data[field]:
             errors.append(f"Поле '{field}' обязательно.")
 
+    if not data["company_id"]:
+        errors.append("Выберите компанию.")
+    else:
+        company = get_company_for_internship(db, data["company_id"])
+        if not company:
+            errors.append("Выбранная компания не найдена.")
+
     if data["work_format"] not in WORK_FORMATS:
-        errors.append("Некорректный формат работы")
+        errors.append("Некорректный формат работы.")
     if data["direction"] not in DIRECTIONS:
-        errors.append("Некорректное направление")
+        errors.append("Некорректное направление.")
     if data["status"] not in STATUSES:
-        errors.append("Некорректный статус")
+        errors.append("Некорректный статус.")
+    return errors
+
+
+def apply_short_description_publish_guard(data):
+    short_description = (data.get("short_description") or "").strip()
+    if len(short_description) > MAX_SHORT_DESCRIPTION_LEN and data.get("is_published") == 1:
+        data["is_published"] = 0
+        return True
+    return False
+
+
+def collect_company_form_data():
+    name = request.form.get("name", "").strip()
+    slug = request.form.get("slug", "").strip()
+    if not slug and name:
+        slug = normalize_slug(name)
+
+    return {
+        "name": name,
+        "slug": slug,
+        "website_url": request.form.get("website_url", "").strip() or None,
+        "career_url": request.form.get("career_url", "").strip() or None,
+        "description": request.form.get("description", "").strip() or None,
+        "internship_info": request.form.get("internship_info", "").strip() or None,
+        "application_notes": request.form.get("application_notes", "").strip() or None,
+        "accent_color": normalize_accent_color(request.form.get("accent_color")),
+        "is_active": 1 if request.form.get("is_active") == "1" else 0,
+    }
+
+
+def validate_company_form(db, data, current_company_id: int | None = None):
+    errors = []
+    if not data["name"]:
+        errors.append("Название компании обязательно.")
+    if not data["slug"]:
+        errors.append("Slug обязателен. Используйте латиницу и дефисы.")
+    elif not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", data["slug"]):
+        errors.append("Slug может содержать только латиницу, цифры и дефисы.")
+
+    if data["website_url"] and not data["website_url"].startswith(("http://", "https://")):
+        errors.append("Website URL должен начинаться с http:// или https://.")
+    if data["career_url"] and not data["career_url"].startswith(("http://", "https://")):
+        errors.append("Career URL должен начинаться с http:// или https://.")
+
+    if not HEX_COLOR_RE.match(data["accent_color"]):
+        errors.append("Accent color должен быть в формате #RRGGBB.")
+
+    if data["slug"]:
+        if current_company_id:
+            existing = db.execute(
+                "SELECT id FROM companies WHERE slug = ? AND id != ?",
+                (data["slug"], current_company_id),
+            ).fetchone()
+        else:
+            existing = db.execute(
+                "SELECT id FROM companies WHERE slug = ?",
+                (data["slug"],),
+            ).fetchone()
+        if existing:
+            errors.append("Компания с таким slug уже существует.")
+
     return errors
 
 
@@ -92,20 +265,28 @@ def internships():
 
     clauses = []
     if tab == "published":
-        clauses.append("is_published = 1")
+        clauses.append("i.is_published = 1")
     elif tab == "drafts":
-        clauses.append("is_published = 0")
+        clauses.append("i.is_published = 0")
     elif tab == "ai":
-        clauses.append("ai_generated = 1")
+        clauses.append("i.ai_generated = 1")
     elif tab == "review":
-        clauses.append("needs_review = 1")
+        clauses.append("i.needs_review = 1")
 
     where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     rows = db.execute(
         f"""
-        SELECT * FROM internships
+        SELECT
+            i.*,
+            c.name AS company_rel_name,
+            c.slug AS company_slug,
+            c.accent_color AS company_accent_color,
+            c.logo_path AS company_logo_path,
+            COALESCE(c.name, i.company_name) AS company_display_name
+        FROM internships i
+        LEFT JOIN companies c ON c.id = i.company_id
         {where_sql}
-        ORDER BY datetime(created_at) DESC
+        ORDER BY datetime(i.created_at) DESC
         """
     ).fetchall()
 
@@ -124,10 +305,15 @@ def internships():
 @admin_bp.route("/internships/new", methods=["GET", "POST"])
 @admin_login_required
 def create_internship():
+    db = get_db()
+    companies = fetch_companies_for_select(db)
+    if not companies:
+        flash("Сначала создайте хотя бы одну активную компанию.", "error")
+        return redirect(url_for("admin.create_company", next=url_for("admin.create_internship")))
+
     form_data = {
         "title": "",
-        "company_name": "",
-        "company_logo_url": "",
+        "company_id": companies[0]["id"],
         "city": "",
         "work_format": "office",
         "direction": "frontend",
@@ -147,28 +333,41 @@ def create_internship():
     }
 
     if request.method == "POST":
-        form_data = collect_form_data()
-        errors = validate_form(form_data)
+        form_data = collect_internship_form_data()
+        errors = validate_internship_form(db, form_data)
         if errors:
             for err in errors:
                 flash(err, "error")
-            return render_template("admin/internship_form.html", form_data=form_data, page_title="Новая стажировка")
+            companies = fetch_companies_for_select(db, form_data.get("company_id"))
+            return render_template(
+                "admin/internship_form.html",
+                form_data=form_data,
+                page_title="Новая стажировка",
+                companies=companies,
+            )
 
-        db = get_db()
+        if apply_short_description_publish_guard(form_data):
+            flash(
+                f"Краткое описание длиннее {MAX_SHORT_DESCRIPTION_LEN} символов. Стажировка сохранена как черновик.",
+                "error",
+            )
+
+        company = get_company_for_internship(db, form_data["company_id"])
         db.execute(
             """
             INSERT INTO internships (
-                title, company_name, company_logo_url, city, work_format, direction,
+                title, company_id, company_name, company_logo_url, city, work_format, direction,
                 employment_type, is_paid, salary_info, deadline_date, short_description,
                 full_description, requirements, responsibilities, conditions, source_url,
                 application_url, status, is_published, created_by_type, ai_generated,
                 ai_generated_at, needs_review, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'human', 0, NULL, 0, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'human', 0, NULL, 0, ?, ?)
             """,
             (
                 form_data["title"],
-                form_data["company_name"],
-                form_data["company_logo_url"],
+                form_data["company_id"],
+                company["name"],
+                company["logo_path"],
                 form_data["city"],
                 form_data["work_format"],
                 form_data["direction"],
@@ -193,7 +392,12 @@ def create_internship():
         flash("Стажировка создана.", "success")
         return redirect(url_for("admin.internships"))
 
-    return render_template("admin/internship_form.html", form_data=form_data, page_title="Новая стажировка")
+    return render_template(
+        "admin/internship_form.html",
+        form_data=form_data,
+        page_title="Новая стажировка",
+        companies=companies,
+    )
 
 
 @admin_bp.route("/internships/<int:internship_id>/edit", methods=["GET", "POST"])
@@ -206,22 +410,31 @@ def edit_internship(internship_id: int):
         return redirect(url_for("admin.internships"))
 
     if request.method == "POST":
-        form_data = collect_form_data()
-        errors = validate_form(form_data)
+        form_data = collect_internship_form_data()
+        errors = validate_internship_form(db, form_data)
         if errors:
             for err in errors:
                 flash(err, "error")
+            companies = fetch_companies_for_select(db, form_data.get("company_id"))
             return render_template(
                 "admin/internship_form.html",
                 form_data=form_data,
                 page_title=f"Редактирование #{internship_id}",
                 internship=internship,
+                companies=companies,
             )
 
+        if apply_short_description_publish_guard(form_data):
+            flash(
+                f"Краткое описание длиннее {MAX_SHORT_DESCRIPTION_LEN} символов. Стажировка сохранена как черновик.",
+                "error",
+            )
+
+        company = get_company_for_internship(db, form_data["company_id"])
         db.execute(
             """
             UPDATE internships
-            SET title = ?, company_name = ?, company_logo_url = ?, city = ?,
+            SET title = ?, company_id = ?, company_name = ?, company_logo_url = ?, city = ?,
                 work_format = ?, direction = ?, employment_type = ?, is_paid = ?,
                 salary_info = ?, deadline_date = ?, short_description = ?, full_description = ?,
                 requirements = ?, responsibilities = ?, conditions = ?, source_url = ?,
@@ -230,8 +443,9 @@ def edit_internship(internship_id: int):
             """,
             (
                 form_data["title"],
-                form_data["company_name"],
-                form_data["company_logo_url"],
+                form_data["company_id"],
+                company["name"],
+                company["logo_path"],
                 form_data["city"],
                 form_data["work_format"],
                 form_data["direction"],
@@ -256,11 +470,14 @@ def edit_internship(internship_id: int):
         flash("Стажировка обновлена.", "success")
         return redirect(url_for("admin.internships"))
 
+    form_data = dict(internship)
+    companies = fetch_companies_for_select(db, internship["company_id"])
     return render_template(
         "admin/internship_form.html",
-        form_data=dict(internship),
+        form_data=form_data,
         page_title=f"Редактирование #{internship_id}",
         internship=internship,
+        companies=companies,
     )
 
 
@@ -317,6 +534,228 @@ def verify_ai_internship(internship_id: int):
     db.commit()
     flash("Карточка отмечена как просмотренная человеком.", "success")
     return redirect(url_for("admin.internships", tab="review"))
+
+
+@admin_bp.route("/companies")
+@admin_login_required
+def companies():
+    db = get_db()
+    rows = db.execute(
+        """
+        SELECT
+            c.*,
+            COUNT(i.id) AS internships_count
+        FROM companies c
+        LEFT JOIN internships i ON i.company_id = c.id
+        GROUP BY c.id
+        ORDER BY datetime(c.created_at) DESC
+        """
+    ).fetchall()
+    return render_template("admin/companies_list.html", companies=rows)
+
+
+@admin_bp.route("/companies/new", methods=["GET", "POST"])
+@admin_login_required
+def create_company():
+    form_data = {
+        "name": "",
+        "slug": "",
+        "website_url": "",
+        "career_url": "",
+        "description": "",
+        "internship_info": "",
+        "application_notes": "",
+        "accent_color": "#0e7490",
+        "is_active": 1,
+    }
+    next_url = safe_admin_next_url(request.args.get("next") or request.form.get("next"))
+
+    if request.method == "POST":
+        db = get_db()
+        form_data = collect_company_form_data()
+        errors = validate_company_form(db, form_data)
+
+        logo_path = None
+        try:
+            logo_path = save_company_logo(request.files.get("logo_file"), form_data["slug"])
+        except ValueError as exc:
+            errors.append(str(exc))
+
+        if errors:
+            for err in errors:
+                flash(err, "error")
+            return render_template(
+                "admin/company_form.html",
+                form_data=form_data,
+                page_title="Новая компания",
+                next_url=next_url,
+                logo_path=None,
+            )
+
+        db.execute(
+            """
+            INSERT INTO companies (
+                name, slug, logo_path, website_url, career_url, description,
+                internship_info, application_notes, accent_color, is_active, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                form_data["name"],
+                form_data["slug"],
+                logo_path,
+                form_data["website_url"],
+                form_data["career_url"],
+                form_data["description"],
+                form_data["internship_info"],
+                form_data["application_notes"],
+                form_data["accent_color"],
+                form_data["is_active"],
+                now_iso(),
+                now_iso(),
+            ),
+        )
+        db.commit()
+        flash("Компания создана.", "success")
+        if next_url:
+            return redirect(next_url)
+        return redirect(url_for("admin.companies"))
+
+    return render_template(
+        "admin/company_form.html",
+        form_data=form_data,
+        page_title="Новая компания",
+        next_url=next_url,
+        logo_path=None,
+    )
+
+
+@admin_bp.route("/companies/<int:company_id>/edit", methods=["GET", "POST"])
+@admin_login_required
+def edit_company(company_id: int):
+    db = get_db()
+    company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
+    if not company:
+        flash("Компания не найдена.", "error")
+        return redirect(url_for("admin.companies"))
+
+    next_url = safe_admin_next_url(request.args.get("next") or request.form.get("next"))
+
+    if request.method == "POST":
+        form_data = collect_company_form_data()
+        errors = validate_company_form(db, form_data, current_company_id=company_id)
+
+        logo_path = company["logo_path"]
+        try:
+            new_logo = save_company_logo(request.files.get("logo_file"), form_data["slug"])
+            if new_logo:
+                logo_path = new_logo
+        except ValueError as exc:
+            errors.append(str(exc))
+
+        if errors:
+            for err in errors:
+                flash(err, "error")
+            return render_template(
+                "admin/company_form.html",
+                form_data=form_data,
+                page_title=f"Редактирование компании #{company_id}",
+                company=company,
+                logo_path=logo_path,
+                next_url=next_url,
+            )
+
+        db.execute(
+            """
+            UPDATE companies
+            SET name = ?, slug = ?, logo_path = ?, website_url = ?, career_url = ?,
+                description = ?, internship_info = ?, application_notes = ?,
+                accent_color = ?, is_active = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                form_data["name"],
+                form_data["slug"],
+                logo_path,
+                form_data["website_url"],
+                form_data["career_url"],
+                form_data["description"],
+                form_data["internship_info"],
+                form_data["application_notes"],
+                form_data["accent_color"],
+                form_data["is_active"],
+                now_iso(),
+                company_id,
+            ),
+        )
+        db.execute(
+            """
+            UPDATE internships
+            SET company_name = ?, company_logo_url = ?, updated_at = ?
+            WHERE company_id = ?
+            """,
+            (
+                form_data["name"],
+                logo_path,
+                now_iso(),
+                company_id,
+            ),
+        )
+        db.commit()
+        flash("Компания обновлена.", "success")
+        if next_url:
+            return redirect(next_url)
+        return redirect(url_for("admin.companies"))
+
+    return render_template(
+        "admin/company_form.html",
+        form_data=dict(company),
+        page_title=f"Редактирование компании #{company_id}",
+        company=company,
+        logo_path=company["logo_path"],
+        next_url=next_url,
+    )
+
+
+@admin_bp.route("/companies/<int:company_id>/toggle-active", methods=["POST"])
+@admin_login_required
+def toggle_company_active(company_id: int):
+    db = get_db()
+    row = db.execute("SELECT id, is_active FROM companies WHERE id = ?", (company_id,)).fetchone()
+    if not row:
+        flash("Компания не найдена.", "error")
+        return redirect(url_for("admin.companies"))
+
+    next_value = 0 if row["is_active"] else 1
+    db.execute(
+        "UPDATE companies SET is_active = ?, updated_at = ? WHERE id = ?",
+        (next_value, now_iso(), company_id),
+    )
+    db.commit()
+    flash("Статус компании обновлен.", "success")
+    return redirect(url_for("admin.companies"))
+
+
+@admin_bp.route("/companies/<int:company_id>/delete", methods=["POST"])
+@admin_login_required
+def delete_company(company_id: int):
+    db = get_db()
+    company = db.execute("SELECT id FROM companies WHERE id = ?", (company_id,)).fetchone()
+    if not company:
+        flash("Компания не найдена.", "error")
+        return redirect(url_for("admin.companies"))
+
+    related = db.execute(
+        "SELECT COUNT(*) AS cnt FROM internships WHERE company_id = ?",
+        (company_id,),
+    ).fetchone()
+    if related["cnt"] > 0:
+        flash("Нельзя удалить компанию, у которой есть стажировки. Сначала деактивируйте её.", "error")
+        return redirect(url_for("admin.companies"))
+
+    db.execute("DELETE FROM companies WHERE id = ?", (company_id,))
+    db.commit()
+    flash("Компания удалена.", "success")
+    return redirect(url_for("admin.companies"))
 
 
 @admin_bp.route("/imports", methods=["GET", "POST"])

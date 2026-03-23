@@ -39,7 +39,12 @@
           <span class="badge badge-ok">Проверено человеком · {{ item['last_verified_at']|display_date }}</span>
         {% endif %}
       </td>
-      <td>{{ item['company_name'] }}</td>
+      <td>
+        {{ item['company_display_name'] }}
+        {% if item['company_slug'] %}
+          <span class="color-dot" style="--dot-color: {{ normalize_hex_color(item['company_accent_color']) }};"></span>
+        {% endif %}
+      </td>
       <td>{{ work_format_labels[item['work_format']] if item['work_format'] in work_format_labels else item['work_format'] }}</td>
       <td>{{ status_labels[item['status']] if item['status'] in status_labels else item['status'] }}</td>
       <td>{{ 'Опубликована' if item['is_published'] else 'Черновик' }}</td>

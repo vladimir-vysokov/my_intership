@@ -12,6 +12,7 @@
     <a class="logo" href="{{ url_for('admin.internships') }}">InternStart Admin</a>
     <nav>
       <a href="{{ url_for('admin.internships') }}">Стажировки</a>
+      <a href="{{ url_for('admin.companies') }}">Компании</a>
       <a href="{{ url_for('admin.imports_page') }}">Импорт</a>
       <a href="{{ url_for('public.home') }}">Public</a>
       {% if is_admin %}<a href="{{ url_for('admin.logout') }}">Выход</a>{% endif %}

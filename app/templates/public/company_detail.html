@@ -1,0 +1,59 @@
+{% extends 'public/base.html' %}
+{% block title %}{{ company['name'] }} | Компании | InternStart{% endblock %}
+{% block content %}
+<article class="detail company-themed" style="{{ company_card_style(company['accent_color']) }}">
+  <div class="card-company-head">
+    {% if company['logo_path'] %}
+      <img class="company-logo" src="{{ url_for('static', filename=company['logo_path']) }}" alt="{{ company['name'] }}">
+    {% endif %}
+    <h1>{{ company['name'] }}</h1>
+  </div>
+
+  {% if company['description'] %}
+    <p>{{ company['description'] }}</p>
+  {% endif %}
+
+  <div class="actions">
+    {% if company['website_url'] %}
+      <a class="btn btn-light" target="_blank" rel="noopener noreferrer" href="{{ company['website_url'] }}">Сайт компании</a>
+    {% endif %}
+    {% if company['career_url'] %}
+      <a class="btn btn-light" target="_blank" rel="noopener noreferrer" href="{{ company['career_url'] }}">Карьера и стажировки</a>
+    {% endif %}
+  </div>
+
+  {% if company['internship_info'] %}
+  <section class="company-info-block">
+    <h2>О стажировках</h2>
+    <p>{{ company['internship_info']|replace('\n', '<br>')|safe }}</p>
+  </section>
+  {% endif %}
+
+  {% if company['application_notes'] %}
+  <section class="company-info-block">
+    <h2>Нюансы подачи</h2>
+    <p>{{ company['application_notes']|replace('\n', '<br>')|safe }}</p>
+  </section>
+  {% endif %}
+</article>
+
+<section>
+  <h2>Опубликованные стажировки</h2>
+  {% if internships %}
+  <div class="cards-grid internships-grid">
+    {% for internship in internships %}
+    <article class="card company-themed internship-card" style="{{ company_card_style(company['accent_color']) }}">
+      <h3>{{ internship['title'] }}</h3>
+      <p class="muted">{{ internship['city'] }}</p>
+      <p class="tags"><span>{{ work_format_labels[internship['work_format']] }}</span><span>{{ internship['direction'] }}</span></p>
+      <p class="short-desc">{{ internship['short_description'] }}</p>
+      <div class="internship-accent-under"></div>
+      <a class="btn btn-light" href="{{ url_for('public.detail', internship_id=internship['id']) }}">Открыть стажировку</a>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">У этой компании пока нет опубликованных стажировок.</p>
+  {% endif %}
+</section>
+{% endblock %}
