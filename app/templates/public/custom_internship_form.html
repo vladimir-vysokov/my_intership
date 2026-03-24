@@ -42,18 +42,18 @@
     </div>
 
     <div class="field">
-      <label>Дата</label>
+      <label>Дата подачи</label>
+      <input type="date" name="applied_at" value="{{ request.form.get('applied_at', '') }}">
+    </div>
+
+    <div class="field">
+      <label>Дата выполнения</label>
       <input type="date" name="next_step_date" value="{{ request.form.get('next_step_date', '') }}">
     </div>
 
     <div class="field">
       <label>Время (опционально)</label>
       <input type="time" name="next_step_time" value="{{ request.form.get('next_step_time', '') }}">
-    </div>
-
-    <div class="field">
-      <label>Дата подачи</label>
-      <input type="date" name="applied_at" value="{{ request.form.get('applied_at', '') }}">
     </div>
 
     <div class="field">

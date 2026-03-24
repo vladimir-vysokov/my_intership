@@ -40,9 +40,7 @@ body {
 }
 
 .nav-wrap {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  display: block;
   padding: 12px 0;
 }
 
@@ -53,24 +51,45 @@ body {
   font-weight: 800;
 }
 
-nav {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
+.top-switcher {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 }
 
-nav a {
-  color: #0f172a;
+.top-switcher-admin {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.top-switcher a {
   text-decoration: none;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 15px;
+  color: #0f172a;
+  text-align: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.86), rgba(241, 246, 252, 0.72));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.top-switcher a:hover {
+  transform: translateY(-1px);
+  border-color: rgba(96, 165, 250, 0.55);
+}
+
+.top-switcher a.active {
+  color: #0b2f66;
+  border-color: rgba(59, 130, 246, 0.6);
+  background: linear-gradient(140deg, rgba(203, 227, 255, 0.95), rgba(185, 215, 255, 0.78));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 18px rgba(59, 130, 246, 0.18);
 }
 
 main {
   padding: 20px 0 28px;
-}
-
-.home-main {
-  width: min(1760px, 99%);
 }
 
 .hero,
@@ -93,29 +112,45 @@ main {
 .hero {
   margin-bottom: 16px;
   background: linear-gradient(130deg, rgba(255, 255, 255, 0.9), rgba(243, 248, 253, 0.86));
-  padding: 28px 24px;
+  padding: 18px 18px;
 }
 
 .home-page {
-  min-height: calc(100vh - 112px);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 10px;
 }
 
-.home-page .home-guide {
-  flex: 1 1 0;
+.home-page h1 {
+  margin: 0 0 8px;
+  line-height: 1.18;
+  font-size: 34px;
+}
+
+.home-page h2 {
+  margin: 0 0 8px;
+  line-height: 1.2;
+  font-size: 24px;
+}
+
+.home-page p {
+  margin: 0;
+}
+
+.hero p {
+  font-size: 16px;
+  line-height: 1.4;
 }
 
 .hero .actions {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
 .home-guide {
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .home-timeline {
@@ -142,8 +177,8 @@ main {
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 16px;
-  padding: 18px 14px;
-  min-height: 208px;
+  padding: 12px 12px;
+  min-height: 138px;
   display: flex;
   flex-direction: column;
 }
@@ -164,14 +199,14 @@ main {
 }
 
 .timeline-step h3 {
-  margin: 0 0 8px;
-  font-size: 18px;
+  margin: 0 0 6px;
+  font-size: 17px;
 }
 
 .timeline-step p {
   margin: 0;
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 14px;
+  line-height: 1.35;
   margin-top: auto;
 }
 
@@ -192,30 +227,30 @@ main {
 }
 
 .quick-action {
-  min-height: 176px;
+  min-height: 122px;
   border-radius: 18px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(244, 249, 253, 0.86));
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
-  padding: 18px 14px;
+  padding: 12px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   text-decoration: none;
   color: #0f172a;
   transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .quick-action-title {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
   color: #0f172a;
 }
 
 .quick-action-text {
   margin-top: auto;
-  font-size: 14px;
-  line-height: 1.42;
+  font-size: 13px;
+  line-height: 1.32;
   color: #475569;
 }
 
@@ -1327,6 +1362,14 @@ td {
 }
 
 @media (max-width: 1200px) {
+  .top-switcher {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .top-switcher-admin {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .internships-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1355,10 +1398,6 @@ td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .home-main {
-    width: min(1760px, 98%);
-  }
-
   .application-layout {
     grid-template-columns: 1fr;
     align-items: start;
@@ -1375,6 +1414,11 @@ td {
 }
 
 @media (max-width: 900px) {
+  .top-switcher,
+  .top-switcher-admin {
+    grid-template-columns: 1fr;
+  }
+
   .page-head {
     flex-direction: column;
     align-items: flex-start;
@@ -1410,10 +1454,6 @@ td {
 
   .home-page {
     min-height: auto;
-  }
-
-  .home-main {
-    width: min(1760px, 96%);
   }
 
   .kanban-column {

@@ -93,12 +93,41 @@ def create_attempt(
     db.execute(
         """
         INSERT INTO application_history (
-            attempt_id, event_type, to_status, event_note, created_at
-        ) VALUES (?, 'create', ?, ?, ?)
+            attempt_id, event_type, to_status, stage_deadline_date, stage_deadline_time, completion_state, event_note, created_at
+        ) VALUES (?, 'create', ?, ?, ?, NULL, ?, ?)
         """,
-        (attempt_id, status, status_note, now),
+        (attempt_id, status, next_step_date, next_step_time, status_note, now),
     )
     return attempt_id
+
+
+def sync_current_stage_deadline_to_history(
+    db,
+    attempt_id: int,
+    deadline_date: str | None,
+    deadline_time: str | None,
+):
+    last_stage_event = db.execute(
+        """
+        SELECT id
+        FROM application_history
+        WHERE attempt_id = ? AND event_type != 'completion'
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (attempt_id,),
+    ).fetchone()
+    if not last_stage_event:
+        return
+
+    db.execute(
+        """
+        UPDATE application_history
+        SET stage_deadline_date = ?, stage_deadline_time = ?
+        WHERE id = ?
+        """,
+        (deadline_date, deadline_time, last_stage_event["id"]),
+    )
 
 
 def add_history_event(
@@ -108,14 +137,98 @@ def add_history_event(
     from_status: str | None,
     to_status: str | None,
     note: str | None = None,
+    stage_deadline_date: str | None = None,
+    stage_deadline_time: str | None = None,
+    completion_state: int | None = None,
 ):
-    db.execute(
+    cursor = db.execute(
         """
         INSERT INTO application_history (
-            attempt_id, event_type, from_status, to_status, event_note, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?)
+            attempt_id, event_type, from_status, to_status, stage_deadline_date, stage_deadline_time, completion_state, event_note, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (attempt_id, event_type, from_status, to_status, note, now_iso()),
+        (
+            attempt_id,
+            event_type,
+            from_status,
+            to_status,
+            stage_deadline_date,
+            stage_deadline_time,
+            completion_state,
+            note,
+            now_iso(),
+        ),
+    )
+    return cursor.lastrowid
+
+
+def recalc_attempt_stage_state(db, attempt_id: int):
+    attempt = db.execute(
+        "SELECT id, marker_enabled, status FROM application_attempts WHERE id = ?",
+        (attempt_id,),
+    ).fetchone()
+    if not attempt:
+        return
+
+    stage_completed = 0
+    if int(attempt["marker_enabled"] or 0) == 1:
+        current_stage = db.execute(
+            """
+            SELECT id
+            FROM application_history
+            WHERE attempt_id = ? AND event_type != 'completion'
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (attempt_id,),
+        ).fetchone()
+        if current_stage:
+            completion = db.execute(
+                """
+                SELECT completion_state
+                FROM application_history
+                WHERE attempt_id = ?
+                  AND event_type = 'completion'
+                  AND id > ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (attempt_id, current_stage["id"]),
+            ).fetchone()
+            if completion and completion["completion_state"] is not None:
+                stage_completed = int(completion["completion_state"])
+
+    db.execute(
+        "UPDATE application_attempts SET stage_completed = ?, updated_at = ? WHERE id = ?",
+        (stage_completed, now_iso(), attempt_id),
+    )
+
+
+def sync_attempt_deadline_from_current_stage(db, attempt_id: int):
+    current_stage = db.execute(
+        """
+        SELECT stage_deadline_date, stage_deadline_time
+        FROM application_history
+        WHERE attempt_id = ? AND event_type != 'completion'
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (attempt_id,),
+    ).fetchone()
+    db.execute(
+        """
+        UPDATE application_attempts
+        SET next_step_date = ?,
+            next_step_time = ?,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (
+            current_stage["stage_deadline_date"] if current_stage else None,
+            current_stage["stage_deadline_time"] if current_stage else None,
+            now_iso(),
+            attempt_id,
+        ),
     )
 
 
@@ -600,6 +713,24 @@ def edit_application(application_id: int):
     if not application:
         abort(404)
 
+    # Keep persisted attempt fields consistent with event timeline.
+    sync_attempt_deadline_from_current_stage(db=db, attempt_id=application_id)
+    recalc_attempt_stage_state(db=db, attempt_id=application_id)
+    db.commit()
+    application = db.execute(
+        """
+        SELECT
+            a.*,
+            i.title AS internship_title,
+            COALESCE(c.name, i.company_name) AS company_display_name
+        FROM application_attempts a
+        JOIN internships i ON i.id = a.internship_id
+        LEFT JOIN companies c ON c.id = i.company_id
+        WHERE a.id = ?
+        """,
+        (application_id,),
+    ).fetchone()
+
     if request.method == "POST":
         next_step_date = parse_form_date(request.form.get("next_step_date"))
         next_step_time = parse_form_date(request.form.get("next_step_time"))
@@ -635,6 +766,12 @@ def edit_application(application_id: int):
                 now_iso(),
                 application_id,
             ),
+        )
+        sync_current_stage_deadline_to_history(
+            db=db,
+            attempt_id=application_id,
+            deadline_date=next_step_date,
+            deadline_time=next_step_time,
         )
         db.commit()
         if old_marker_enabled != marker_enabled:
@@ -699,7 +836,7 @@ def edit_application(application_id: int):
 def move_application(application_id: int):
     db = get_db()
     row = db.execute(
-        "SELECT id, status, marker_enabled FROM application_attempts WHERE id = ?",
+        "SELECT id, status, marker_enabled, next_step_date, next_step_time FROM application_attempts WHERE id = ?",
         (application_id,),
     ).fetchone()
     if not row:
@@ -719,15 +856,31 @@ def move_application(application_id: int):
             }
         ), 400
 
-    if old_status != new_status and int(row["marker_enabled"] or 0) == 1:
-        db.execute(
-            """
-            UPDATE application_attempts
-            SET status = ?, stage_completed = 0, updated_at = ?
-            WHERE id = ?
-            """,
-            (new_status, now_iso(), application_id),
+    if old_status != new_status:
+        sync_current_stage_deadline_to_history(
+            db=db,
+            attempt_id=application_id,
+            deadline_date=row["next_step_date"],
+            deadline_time=row["next_step_time"],
         )
+        if int(row["marker_enabled"] or 0) == 1:
+            db.execute(
+                """
+                UPDATE application_attempts
+                SET status = ?, stage_completed = 0, next_step_date = NULL, next_step_time = NULL, updated_at = ?
+                WHERE id = ?
+                """,
+                (new_status, now_iso(), application_id),
+            )
+        else:
+            db.execute(
+                """
+                UPDATE application_attempts
+                SET status = ?, next_step_date = NULL, next_step_time = NULL, updated_at = ?
+                WHERE id = ?
+                """,
+                (new_status, now_iso(), application_id),
+            )
     else:
         db.execute(
             "UPDATE application_attempts SET status = ?, updated_at = ? WHERE id = ?",
@@ -853,22 +1006,68 @@ def delete_application(application_id: int):
 def add_attempt_event(application_id: int):
     db = get_db()
     row = db.execute(
-        "SELECT id, status FROM application_attempts WHERE id = ?",
+        "SELECT id, status, marker_enabled, next_step_date, next_step_time FROM application_attempts WHERE id = ?",
         (application_id,),
     ).fetchone()
     if not row:
         abort(404)
 
+    # Freeze deadline on the exact previous stage before creating a new one.
+    prev_stage = db.execute(
+        """
+        SELECT id
+        FROM application_history
+        WHERE attempt_id = ? AND event_type != 'completion'
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (application_id,),
+    ).fetchone()
+    if prev_stage:
+        db.execute(
+            """
+            UPDATE application_history
+            SET stage_deadline_date = ?, stage_deadline_time = ?
+            WHERE id = ?
+            """,
+            (row["next_step_date"], row["next_step_time"], prev_stage["id"]),
+        )
+    db.execute(
+        """
+        UPDATE application_attempts
+        SET next_step_date = NULL,
+            next_step_time = NULL,
+            stage_completed = CASE WHEN marker_enabled = 1 THEN 0 ELSE stage_completed END,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (now_iso(), application_id),
+    )
+
     # Adds a generic stage event tied to the current attempt status.
     note = None
-    add_history_event(
+    new_stage_event_id = add_history_event(
         db=db,
         attempt_id=application_id,
         event_type="stage",
         from_status=row["status"],
         to_status=row["status"],
         note=note,
+        stage_deadline_date=None,
+        stage_deadline_time=None,
     )
+    # Hard reset for the newly created stage and current attempt state.
+    db.execute(
+        """
+        UPDATE application_history
+        SET stage_deadline_date = NULL,
+            stage_deadline_time = NULL
+        WHERE id = ?
+        """,
+        (new_stage_event_id,),
+    )
+    sync_attempt_deadline_from_current_stage(db=db, attempt_id=application_id)
+    recalc_attempt_stage_state(db=db, attempt_id=application_id)
     db.commit()
     flash("Этап добавлен в таймлайн подачи.", "success")
     return redirect(url_for("public.edit_application", application_id=application_id))
@@ -886,10 +1085,6 @@ def update_attempt_event_completion(application_id: int, event_id: int):
     if int(attempt["marker_enabled"] or 0) == 0:
         flash("Сначала включите маркер выполнения в левой панели.", "error")
         return redirect(url_for("public.edit_application", application_id=application_id))
-    if attempt["status"] == "want_to_apply":
-        flash("На этапе 'Хочу податься' отметка выполнения не используется.", "error")
-        return redirect(url_for("public.edit_application", application_id=application_id))
-
     event = db.execute(
         "SELECT id FROM application_history WHERE id = ? AND attempt_id = ?",
         (event_id, application_id),
@@ -902,7 +1097,7 @@ def update_attempt_event_completion(application_id: int, event_id: int):
         SELECT id
         FROM application_history
         WHERE attempt_id = ? AND event_type != 'completion'
-        ORDER BY datetime(created_at) DESC, id DESC
+        ORDER BY id DESC
         LIMIT 1
         """,
         (application_id,),
@@ -927,6 +1122,7 @@ def update_attempt_event_completion(application_id: int, event_id: int):
         from_status=attempt["status"],
         to_status=attempt["status"],
         note="Этап отмечен как выполненный." if new_stage_completed == 1 else "Отметка выполнения этапа снята.",
+        completion_state=new_stage_completed,
     )
     db.commit()
     flash("Отметка выполнения обновлена.", "success")
@@ -985,7 +1181,7 @@ def delete_attempt_event(application_id: int, event_id: int):
         SELECT id, event_type
         FROM application_history
         WHERE attempt_id = ?
-        ORDER BY datetime(created_at) DESC, id DESC
+        ORDER BY id DESC
         LIMIT 1
         """,
         (application_id,),
@@ -1026,6 +1222,25 @@ def delete_attempt_event(application_id: int, event_id: int):
                 )
 
     db.execute("DELETE FROM application_history WHERE id = ? AND attempt_id = ?", (event_id, application_id))
+    if event["event_type"] == "completion":
+        db.execute(
+            "UPDATE application_attempts SET stage_completed = 0, updated_at = ? WHERE id = ?",
+            (now_iso(), application_id),
+        )
+    # If the deleted event was a stage transition, also drop trailing completion events
+    # that belonged to that stage to keep checkbox state consistent.
+    if event["event_type"] in {"move", "stage"}:
+        db.execute(
+            """
+            DELETE FROM application_history
+            WHERE attempt_id = ?
+              AND event_type = 'completion'
+              AND id > ?
+            """,
+            (application_id, event_id),
+        )
+    sync_attempt_deadline_from_current_stage(db=db, attempt_id=application_id)
+    recalc_attempt_stage_state(db=db, attempt_id=application_id)
     db.commit()
     flash("Этап удален из истории.", "success")
     return redirect(url_for("public.edit_application", application_id=application_id))

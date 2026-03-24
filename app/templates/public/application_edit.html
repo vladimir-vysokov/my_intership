@@ -125,12 +125,12 @@
 
                 {% if item.is_current %}
                   <div class="timeline-event-meta">
-                    {% if loop.last and item.attempt['next_step_date'] %}
+                    {% if event['stage_deadline_date'] %}
                       <span class="timeline-meta-chip">
-                        Дата: {{ item.attempt['next_step_date']|display_date }}{% if item.attempt['next_step_time'] %} {{ item.attempt['next_step_time'] }}{% endif %}
+                        Дата: {{ event['stage_deadline_date']|display_date }}{% if event['stage_deadline_time'] %} {{ event['stage_deadline_time'] }}{% endif %}
                       </span>
                     {% endif %}
-                    {% if item.attempt['marker_enabled']|int == 1 and item.attempt['status'] != 'want_to_apply' and item['checkbox_event_id'] %}
+                    {% if item.attempt['marker_enabled']|int == 1 and item['checkbox_event_id'] %}
                       <span class="timeline-meta-chip timeline-meta-chip-check">
                         {% if event['id'] == item['checkbox_event_id'] %}
                           <form method="post" action="{{ url_for('public.update_attempt_event_completion', application_id=item.attempt['id'], event_id=event['id']) }}" class="timeline-complete-form">

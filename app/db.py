@@ -160,6 +160,9 @@ def init_db(app):
                     event_type TEXT NOT NULL,
                     from_status TEXT,
                     to_status TEXT,
+                    stage_deadline_date TEXT,
+                    stage_deadline_time TEXT,
+                    completion_state INTEGER,
                     event_note TEXT,
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY(attempt_id) REFERENCES application_attempts(id) ON DELETE CASCADE
@@ -186,6 +189,15 @@ def init_db(app):
             }
             for column_name, ddl in application_migrations.items():
                 if not column_exists(db, "applications", column_name):
+                    db.execute(ddl)
+
+            history_migrations = {
+                "stage_deadline_date": "ALTER TABLE application_history ADD COLUMN stage_deadline_date TEXT",
+                "stage_deadline_time": "ALTER TABLE application_history ADD COLUMN stage_deadline_time TEXT",
+                "completion_state": "ALTER TABLE application_history ADD COLUMN completion_state INTEGER",
+            }
+            for column_name, ddl in history_migrations.items():
+                if not column_exists(db, "application_history", column_name):
                     db.execute(ddl)
 
             # Create indexes after schema migrations.

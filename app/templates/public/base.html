@@ -9,12 +9,11 @@
 <body class="{% block body_class %}{% endblock %}">
   <header class="site-header">
     <div class="container nav-wrap">
-      <a class="logo" href="{{ url_for('public.home') }}">InternStart</a>
-      <nav>
-        <a href="{{ url_for('public.home') }}">Главная</a>
-        <a href="{{ url_for('public.catalog') }}">Каталог</a>
-        <a href="{{ url_for('public.companies') }}">Компании</a>
-        <a href="{{ url_for('public.applications_board') }}">Мои подачи</a>
+      <nav class="top-switcher">
+        <a class="{% if request.endpoint == 'public.home' %}active{% endif %}" href="{{ url_for('public.home') }}">Главная</a>
+        <a class="{% if request.endpoint in ['public.catalog', 'public.detail'] %}active{% endif %}" href="{{ url_for('public.catalog') }}">Каталог</a>
+        <a class="{% if request.endpoint in ['public.companies', 'public.company_detail'] %}active{% endif %}" href="{{ url_for('public.companies') }}">Компании</a>
+        <a class="{% if request.endpoint == 'public.applications_board' %}active{% endif %}" href="{{ url_for('public.applications_board') }}">Мои подачи</a>
       </nav>
     </div>
   </header>

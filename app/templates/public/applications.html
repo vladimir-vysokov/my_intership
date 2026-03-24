@@ -32,7 +32,7 @@
             {% if app['current_stage_comment'] %}
               <p class="kanban-status-note">{{ app['current_stage_comment'] }}</p>
             {% endif %}
-            {% if app['marker_enabled']|int == 1 and app['status'] != 'want_to_apply' %}
+            {% if app['marker_enabled']|int == 1 %}
               <p class="muted kanban-meta-line">
                 <span class="stage-pill {% if app['stage_completed']|int == 1 %}stage-pill-done{% else %}stage-pill-pending{% endif %}">
                   {% if app['stage_completed']|int == 1 %}Выполнено{% else %}Не выполнено{% endif %}
@@ -83,7 +83,7 @@
                 {% if app['current_stage_comment'] %}
                   <p class="kanban-status-note">{{ app['current_stage_comment'] }}</p>
                 {% endif %}
-                {% if app['marker_enabled']|int == 1 and app['status'] != 'want_to_apply' %}
+                {% if app['marker_enabled']|int == 1 %}
                   <p class="muted kanban-meta-line">
                     <span class="stage-pill {% if app['stage_completed']|int == 1 %}stage-pill-done{% else %}stage-pill-pending{% endif %}">
                       {% if app['stage_completed']|int == 1 %}Выполнено{% else %}Не выполнено{% endif %}
