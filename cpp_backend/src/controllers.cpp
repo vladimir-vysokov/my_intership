@@ -291,9 +291,7 @@ Response PublicController::catalog(const Request& request) const {
           << (!row.at("last_verified_at").empty() ? "<p class='verified-line'>Проверено: " + htmlEscape(row.at("last_verified_at").substr(0, 10)) + "</p>" : "")
           << "<p class='short-desc'>" << htmlEscape(row.at("short_description")) << "</p>"
           << "<div class='internship-accent-under'></div>"
-          << "<div class='internship-card-actions'>"
-          << "<a class='btn btn-light' target='_blank' rel='noopener noreferrer' href='" << htmlEscape(row.at("source_url").empty() ? "/internships/" + row.at("id") : row.at("source_url")) << "'>Проверить</a>"
-          << "<a class='btn btn-light' href='/internships/" << row.at("id") << "'>Подробнее</a></div></article>";
+          << "<a class='btn btn-light' href='/internships/" << row.at("id") << "'>Подробнее</a></article>";
     }
     b << "</div>";
     Response response;
@@ -405,14 +403,12 @@ Response PublicController::companyDetail(const std::string& slug, const Request&
       << "<p>" << htmlEscape(company["description"]) << "</p></div>"
       << "<aside class='rating-summary'><div class='rating-number'>" << summary.averageText() << "</div>"
       << ratingStars(summary.hasRatings() ? static_cast<int>(summary.average + 0.5) : 0)
-      << "<p class='muted'>" << reviewCountLabel(summary.count) << " по пятибалльной шкале</p>"
+      << "<p class='muted'>" << reviewCountLabel(summary.count) << "</p>"
       << "<a class='btn btn-light rating-summary-link' href='#reviews-modal'>Посмотреть отзывы</a></aside></div><div class='actions'>";
     if (!company["website_url"].empty()) b << "<a class='btn btn-light' target='_blank' rel='noopener noreferrer' href='" << htmlEscape(company["website_url"]) << "'>Сайт компании</a>";
     if (!company["career_url"].empty()) b << "<a class='btn btn-light' target='_blank' rel='noopener noreferrer' href='" << htmlEscape(company["career_url"]) << "'>Карьера и стажировки</a>";
     if (can_review) {
         b << "<a class='btn' href='/ratings/companies/" << company_id << "'>Оставить отзыв</a>";
-    } else {
-        b << "<span class='review-locked'>Отзыв доступен после оффера или отказа</span>";
     }
     b << "</div></article>";
 
