@@ -1939,6 +1939,12 @@ td {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 7px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.kanban-column-head::-webkit-details-marker {
+  display: none;
 }
 
 .kanban-column h2 {
@@ -2704,12 +2710,12 @@ td {
     left: 50%;
     bottom: max(10px, env(safe-area-inset-bottom));
     z-index: 300;
-    width: min(430px, calc(100vw - 20px));
-    min-height: 72px;
+    width: min(560px, calc(100vw - 16px));
+    min-height: 70px;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    padding: 8px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 3px;
+    padding: 6px;
     border-radius: 24px;
     transform: translateX(-50%);
     background: rgba(255, 255, 255, 0.96);
@@ -2722,17 +2728,17 @@ td {
   .mobile-tabbar a,
   .mobile-tabbar summary {
     min-width: 0;
-    min-height: 56px;
+    min-height: 58px;
     display: grid;
     place-items: center;
     align-content: center;
-    gap: 3px;
-    padding: 6px 4px;
-    border-radius: 18px;
+    gap: 4px;
+    padding: 6px 2px;
+    border-radius: 16px;
     color: #334155;
     text-decoration: none;
     list-style: none;
-    font-size: 12px;
+    font-size: 10px;
     line-height: 1;
     font-weight: 900;
     background: transparent;
@@ -2746,8 +2752,8 @@ td {
   }
 
   .mobile-tabbar svg {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     fill: none;
     stroke: currentColor;
     stroke-width: 2.2;
@@ -2816,6 +2822,7 @@ td {
 
   .kanban-board {
     grid-template-columns: 1fr;
+    gap: 9px;
   }
 
   .home-timeline {
@@ -2874,9 +2881,42 @@ td {
 
   .kanban-column {
     min-width: 0;
+    padding: 8px;
+    border-radius: 16px;
   }
 
   .kanban-list {
-    min-height: 60vh;
+    min-height: 120px;
+    margin-top: 8px;
+  }
+
+  .kanban-column:not([open]) .kanban-list {
+    display: none;
+  }
+
+  .kanban-column:not([open]) .kanban-column-head {
+    min-height: 54px;
+    margin-bottom: 0;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: rgba(248, 250, 252, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+  }
+
+  .kanban-column-head.drag-over,
+  .kanban-list.drag-over {
+    background: rgba(219, 234, 254, 0.9);
+    border-color: rgba(96, 165, 250, 0.42);
+  }
+
+  .tracker-top-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .tracker-top-actions .btn {
+    width: 100%;
+    justify-content: center;
   }
 }
