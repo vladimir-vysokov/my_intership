@@ -2694,7 +2694,7 @@ td {
 
 @media (max-width: 900px) {
   body:has(.mobile-tabbar) {
-    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
   }
 
   .public-header {
@@ -2708,15 +2708,18 @@ td {
   .mobile-tabbar {
     position: fixed;
     left: 50%;
-    bottom: max(10px, env(safe-area-inset-bottom));
+    bottom: max(8px, env(safe-area-inset-bottom));
     z-index: 300;
-    width: min(560px, calc(100vw - 16px));
-    min-height: 70px;
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 3px;
-    padding: 6px;
-    border-radius: 24px;
+    width: min(560px, calc(100vw - 12px));
+    height: 58px;
+    display: flex;
+    gap: 4px;
+    padding: 5px;
+    overflow-x: auto;
+    overflow-y: visible;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    border-radius: 20px;
     transform: translateX(-50%);
     background: rgba(255, 255, 255, 0.96);
     border: 1px solid rgba(148, 163, 184, 0.28);
@@ -2725,20 +2728,31 @@ td {
     -webkit-backdrop-filter: blur(18px) saturate(130%);
   }
 
+  .mobile-tabbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-tabbar > a,
+  .mobile-tabbar > details {
+    flex: 0 0 68px;
+    min-width: 68px;
+  }
+
   .mobile-tabbar a,
   .mobile-tabbar summary {
     min-width: 0;
-    min-height: 58px;
+    width: 100%;
+    min-height: 48px;
     display: grid;
     place-items: center;
     align-content: center;
-    gap: 4px;
-    padding: 6px 2px;
-    border-radius: 16px;
+    gap: 2px;
+    padding: 5px 2px;
+    border-radius: 15px;
     color: #334155;
     text-decoration: none;
     list-style: none;
-    font-size: 10px;
+    font-size: 9px;
     line-height: 1;
     font-weight: 900;
     background: transparent;
@@ -2752,8 +2766,8 @@ td {
   }
 
   .mobile-tabbar svg {
-    width: 22px;
-    height: 22px;
+    width: 19px;
+    height: 19px;
     fill: none;
     stroke: currentColor;
     stroke-width: 2.2;
@@ -2776,10 +2790,10 @@ td {
     position: fixed;
     left: 50%;
     right: auto;
-    bottom: calc(92px + env(safe-area-inset-bottom));
+    bottom: calc(74px + env(safe-area-inset-bottom));
     top: auto;
     width: min(430px, calc(100vw - 20px));
-    max-height: calc(100vh - 130px - env(safe-area-inset-bottom));
+    max-height: calc(100vh - 104px - env(safe-area-inset-bottom));
     overflow: auto;
     transform: translateX(-50%);
     border-radius: 22px;
