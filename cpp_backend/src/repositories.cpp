@@ -6,6 +6,16 @@ namespace internstart {
 
 CompanyRepository::CompanyRepository(Database& db) : db_(db) {}
 
+static std::string uniqueCompanySlug(Database& db, const std::string& name, int current_id = 0) {
+    std::string base_slug = slugify(name);
+    std::string slug = base_slug;
+    int suffix = 2;
+    while (!db.one("SELECT id FROM companies WHERE slug=? AND id<>?", {slug, std::to_string(current_id)}).empty()) {
+        slug = base_slug + "-" + std::to_string(suffix++);
+    }
+    return slug;
+}
+
 std::vector<Row> CompanyRepository::activeCompaniesWithCounts() const {
     return db_.query(
         "SELECT c.*, COUNT(DISTINCT i.id) AS active_internships_count, "
@@ -65,8 +75,7 @@ Row CompanyRepository::ensurePrivateByName(const std::string& name, int user_id)
 
 void CompanyRepository::save(const Row& form, int id) const {
     std::string name = field(form, "name");
-    std::string slug = field(form, "slug");
-    if (slug.empty()) slug = slugify(name);
+    std::string slug = uniqueCompanySlug(db_, name, id);
     std::string now = nowIso();
     if (id == 0) {
         db_.run("INSERT INTO companies (name, slug, website_url, career_url, description, internship_info, application_notes, accent_color, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
@@ -75,6 +84,10 @@ void CompanyRepository::save(const Row& form, int id) const {
         db_.run("UPDATE companies SET name=?, slug=?, website_url=?, career_url=?, description=?, internship_info=?, application_notes=?, accent_color=?, updated_at=? WHERE id=?",
                 {name, slug, field(form, "website_url"), field(form, "career_url"), field(form, "description"), field(form, "internship_info"), field(form, "application_notes"), field(form, "accent_color", "#0e7490"), now, std::to_string(id)});
     }
+}
+
+void CompanyRepository::remove(int id) const {
+    db_.run("DELETE FROM companies WHERE id=?", {std::to_string(id)});
 }
 
 DirectionRepository::DirectionRepository(Database& db) : db_(db) {}
@@ -173,7 +186,7 @@ int InternshipRepository::save(const Row& form, int id) const {
     };
     if (id == 0) {
         params.push_back(now);
-        return db_.run("INSERT INTO internships (title, company_id, company_name, city, work_format, direction, employment_type, is_paid, short_description, full_description, source_url, application_url, status, is_published, created_by_type, created_by_user_id, ai_generated, needs_review, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, -1, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)", params);
+        return db_.run("INSERT INTO internships (title, company_id, company_name, city, work_format, direction, employment_type, is_paid, short_description, full_description, source_url, application_url, status, is_published, created_by_type, created_by_user_id, needs_review, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, -1, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)", params);
     } else {
         params.push_back(std::to_string(id));
         db_.run("UPDATE internships SET title=?, company_id=?, company_name=?, city=?, work_format=?, direction=?, employment_type=?, short_description=?, full_description=?, source_url=?, application_url=?, status=?, is_published=?, created_by_type=?, created_by_user_id=?, updated_at=? WHERE id=?", params);
@@ -275,7 +288,10 @@ ApplicationRepository::ApplicationRepository(Database& db) : db_(db) {}
 
 std::vector<Row> ApplicationRepository::board(int user_id) const {
     return db_.query(
-        "SELECT a.*, i.title AS internship_title, i.city AS internship_city, COALESCE(c.name, i.company_name) AS company_display_name "
+        "SELECT a.*, i.title AS internship_title, i.city AS internship_city, COALESCE(c.name, i.company_name) AS company_display_name, "
+        "(SELECT COUNT(*) FROM application_attempts x WHERE x.user_id=a.user_id AND x.internship_id=a.internship_id) AS attempt_count, "
+        "(SELECT COUNT(*) FROM application_attempts x WHERE x.user_id=a.user_id AND x.internship_id=a.internship_id AND x.id<=a.id) AS attempt_number, "
+        "(SELECT h.event_note FROM application_history h WHERE h.attempt_id=a.id AND h.event_type!='completion' ORDER BY h.id DESC LIMIT 1) AS task_note "
         "FROM application_attempts a JOIN internships i ON i.id = a.internship_id LEFT JOIN companies c ON c.id = i.company_id "
         "WHERE a.user_id = ? "
         "ORDER BY CASE a.status WHEN 'want_to_apply' THEN 1 WHEN 'applied' THEN 2 WHEN 'test' THEN 3 WHEN 'interview' THEN 4 WHEN 'offer' THEN 5 WHEN 'rejected' THEN 6 WHEN 'archived' THEN 7 ELSE 99 END, datetime(a.updated_at) DESC",

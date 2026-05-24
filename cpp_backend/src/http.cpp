@@ -55,7 +55,7 @@ HttpServer::~HttpServer() {
 }
 
 void HttpServer::listenAndServe(const Handler& handler) const {
-    std::cout << "InternStart C++ backend: http://" << host_ << ":" << port_ << "\n";
+    std::cout << "http://" << host_ << ":" << port_ << "\n";
     while (true) {
         int client = accept(server_fd_, nullptr, nullptr);
         if (client < 0) continue;

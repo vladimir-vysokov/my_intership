@@ -75,8 +75,8 @@ INSERT INTO internships (
     title, company_id, company_name, city, work_format, direction, employment_type,
     is_paid, salary_info, deadline_date, short_description, full_description,
     requirements, responsibilities, conditions, source_url, application_url,
-    status, is_published, created_by_type, ai_generated, needs_review, updated_at, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'demo', 0, 0, ?, ?)
+    status, is_published, created_by_type, needs_review, updated_at, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'demo', 0, ?, ?)
 )SQL", params);
     }
     params.push_back(existing["id"]);
@@ -249,8 +249,6 @@ CREATE TABLE IF NOT EXISTS internships (
     is_published INTEGER NOT NULL DEFAULT 0,
     created_by_type TEXT NOT NULL DEFAULT 'human',
     created_by_user_id INTEGER,
-    ai_generated INTEGER NOT NULL DEFAULT 0,
-    ai_generated_at TEXT,
     last_verified_at TEXT,
     needs_review INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -419,9 +417,10 @@ WHERE created_by_user_id IS NULL
         db.run("INSERT OR IGNORE INTO internship_directions (name, is_active, created_at) VALUES (?, 1, ?)", {direction, nowIso()});
     }
 
+    const bool seed_demo_reviews = envOr("SEED_DEMO_REVIEWS", "0") == "1";
     Row counts = db.one("SELECT (SELECT COUNT(*) FROM companies) AS c, (SELECT COUNT(*) FROM internships) AS i");
     if (counts["c"] != "0" || counts["i"] != "0") {
-        seedDemoReviews(db);
+        if (seed_demo_reviews) seedDemoReviews(db);
         return;
     }
 
@@ -470,13 +469,13 @@ INSERT INTO internships (
     title, company_id, company_name, city, work_format, direction, employment_type,
     is_paid, salary_info, deadline_date, short_description, full_description,
     requirements, responsibilities, conditions, source_url, application_url,
-    status, is_published, created_by_type, ai_generated, needs_review, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, 'Part-time', 1, 'Оплачиваемая программа', ?, ?, ?, 'Базовые навыки по направлению.', 'Практические задачи в команде.', 'Гибкий график.', ?, ?, 'open', 1, 'human', 0, 0, ?, ?)
+    status, is_published, created_by_type, needs_review, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, 'Part-time', 1, 'Оплачиваемая программа', ?, ?, ?, 'Базовые навыки по направлению.', 'Практические задачи в команде.', 'Гибкий график.', ?, ?, 'open', 1, 'human', 0, ?, ?)
 )SQL", {item.title, company["id"], company["name"], item.city, item.format, item.direction, item.deadline,
                std::string("Стажировка: ") + item.title, std::string("Описание программы ") + item.title + ".",
                company["career_url"], company["career_url"], now, now});
     }
-    seedDemoReviews(db);
+    if (seed_demo_reviews) seedDemoReviews(db);
 }
 
 } // namespace internstart

@@ -19,6 +19,7 @@ public:
     Row ensureByName(const std::string& name) const;
     Row ensurePrivateByName(const std::string& name, int user_id) const;
     void save(const Row& form, int id = 0) const;
+    void remove(int id) const;
 
 private:
     Database& db_;

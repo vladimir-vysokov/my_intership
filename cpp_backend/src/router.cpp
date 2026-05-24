@@ -56,8 +56,16 @@ Router::Router(std::string db_path, std::string base_dir)
     : db_path_(std::move(db_path)), renderer_(std::move(base_dir)) {}
 
 Response Router::handle(const Request& request) const {
+    // Статические файлы
     if (request.path.rfind("/static/", 0) == 0) return renderer_.staticFile(request.path);
+    if (request.method == "GET" && request.path == "/healthz") {
+        Response response;
+        response.content_type = "text/plain; charset=utf-8";
+        response.body = "ok";
+        return response;
+    }
 
+    // Подключение к базе и основные контроллеры
     Database db(db_path_);
     PublicController public_controller(db, renderer_);
     AdminController admin_controller(db, renderer_);
@@ -73,13 +81,16 @@ Response Router::handle(const Request& request) const {
     if (!admin_path && user_id == 0) return redirectTo("/");
     ApplicationController application_controller(db, renderer_, user_id);
 
+    // Публичная часть сайта
     if (request.method == "GET" && request.path == "/internships") return public_controller.catalog(request);
     if (request.method == "GET" && pathIntTail(request.path, "/internships/", id)) return public_controller.internshipDetail(id, request);
     if (request.method == "GET" && request.path == "/companies") return public_controller.companies(request);
     if (request.method == "GET" && request.path.rfind("/companies/", 0) == 0) return public_controller.companyDetail(request.path.substr(std::string("/companies/").size()), request);
+    if (request.method == "GET" && request.path == "/notifications") return public_controller.notifications(request);
     if (request.method == "GET" && request.path == "/ratings") return public_controller.myRatings(request);
     if ((request.method == "GET" || request.method == "POST") && pathIntTail(request.path, "/ratings/companies/", id)) return public_controller.rateCompany(id, request);
 
+    // Личная доска подач
     if (request.method == "GET" && request.path == "/applications") return application_controller.board();
     if ((request.method == "GET" || request.method == "POST") && request.path == "/applications/new-internship") return application_controller.newInternship(request);
     if (request.method == "POST" && pathIntTail(request.path, "/applications/add/", id)) return application_controller.addToTracker(id);
@@ -93,8 +104,9 @@ Response Router::handle(const Request& request) const {
     if (request.method == "POST" && eventPath(request.path, "/comment", id, event_id)) return application_controller.updateEventComment(id, event_id, request);
     if (request.method == "POST" && eventPath(request.path, "/completion", id, event_id)) return application_controller.updateEventCompletion(id, event_id, request);
 
+    // Админ-панель
     if ((request.method == "GET" || request.method == "POST") && request.path == "/admin/login") return admin_controller.login(request);
-    if (request.method == "GET" && request.path == "/admin") return redirectTo("/admin/accounts");
+    if (request.method == "GET" && request.path == "/admin") return cookieValue(request, "admin_auth") == "1" ? redirectTo("/admin/accounts") : redirectTo("/admin/login");
     if (request.method == "GET" && request.path == "/admin/accounts") return admin_controller.accounts(request);
     if ((request.method == "GET" || request.method == "POST") && request.path == "/admin/accounts/new") return admin_controller.newAccount(request);
     if (request.method == "GET" && request.path == "/admin/internships") return admin_controller.internships(request);
@@ -106,6 +118,7 @@ Response Router::handle(const Request& request) const {
     if (request.method == "GET" && request.path == "/admin/companies") return admin_controller.companies(request);
     if ((request.method == "GET" || request.method == "POST") && request.path == "/admin/companies/new") return admin_controller.newCompany(request);
     if ((request.method == "GET" || request.method == "POST") && pathIntTail(request.path, "/admin/companies/", id, "/edit")) return admin_controller.editCompany(id, request);
+    if (request.method == "POST" && pathIntTail(request.path, "/admin/companies/", id, "/delete")) return admin_controller.deleteCompany(id, request);
     if ((request.method == "GET" || request.method == "POST") && request.path == "/admin/directions") return admin_controller.directions(request);
     if (request.method == "POST" && pathIntTail(request.path, "/admin/directions/", id, "/toggle")) return admin_controller.toggleDirection(id, request);
     if (request.method == "GET" && request.path == "/admin/imports") return admin_controller.imports(request);

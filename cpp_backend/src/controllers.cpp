@@ -27,6 +27,43 @@ std::string activeClass(const std::string& active, const std::string& item) {
     return active == item ? "active" : "";
 }
 
+std::string bellIcon() {
+    return "<svg class='bell-icon' viewBox='0 0 24 24' aria-hidden='true'><path d='M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9'></path><path d='M13.73 21a2 2 0 0 1-3.46 0'></path></svg>";
+}
+
+std::string navIcon(const std::string& name) {
+    if (name == "catalog") return "<svg viewBox='0 0 24 24' aria-hidden='true'><path d='M4 5h16'></path><path d='M4 12h16'></path><path d='M4 19h10'></path></svg>";
+    if (name == "applications") return "<svg viewBox='0 0 24 24' aria-hidden='true'><rect x='4' y='4' width='16' height='16' rx='3'></rect><path d='M8 9h8'></path><path d='M8 14h5'></path></svg>";
+    return "<svg viewBox='0 0 24 24' aria-hidden='true'><circle cx='12' cy='8' r='4'></circle><path d='M4 20c1.6-4 14.4-4 16 0'></path></svg>";
+}
+
+std::string accountMenu(const std::string& user_email) {
+    std::ostringstream out;
+    const std::string initial = user_email.empty() ? "А" : user_email.substr(0, 1);
+    out << "<details class='account-menu nav-account-menu'><summary aria-label='Аккаунт'>" << htmlEscape(initial) << "</summary>"
+        << "<div class='account-menu-panel'><span class='account-email'>" << htmlEscape(user_email) << "</span>"
+        << "<div class='account-divider'></div>"
+        << "<button class='account-notifications' type='button'>" << bellIcon() << "<span>Уведомления</span></button>"
+        << "<div class='account-notification-panel is-hidden'><p class='muted'>Загрузка...</p></div>"
+        << "<form method='post' action='/logout'><button class='btn btn-light btn-small'>Выйти</button></form></div></details>";
+    return out.str();
+}
+
+std::string mobileTabBar(const std::string& active, const std::string& user_email) {
+    std::ostringstream out;
+    out << "<nav class='mobile-tabbar' aria-label='Основная навигация'>"
+        << "<a class='" << activeClass(active, "catalog") << "' href='/internships'>" << navIcon("catalog") << "<span>Каталог</span></a>"
+        << "<a class='" << activeClass(active, "applications") << "' href='/applications'>" << navIcon("applications") << "<span>Подачи</span></a>"
+        << "<details class='mobile-account-menu account-menu'><summary aria-label='Аккаунт'>" << navIcon("account") << "<span>Аккаунт</span></summary>"
+        << "<div class='account-menu-panel'><span class='account-email'>" << htmlEscape(user_email) << "</span>"
+        << "<div class='account-divider'></div>"
+        << "<button class='account-notifications' type='button'>" << bellIcon() << "<span>Уведомления</span></button>"
+        << "<div class='account-notification-panel is-hidden'><p class='muted'>Загрузка...</p></div>"
+        << "<form method='post' action='/logout'><button class='btn btn-light btn-small'>Выйти</button></form></div></details>"
+        << "</nav>";
+    return out.str();
+}
+
 std::string fixedOne(double value) {
     std::ostringstream out;
     out.setf(std::ios::fixed);
@@ -113,9 +150,9 @@ std::string PageRenderer::layout(const std::string& title, const std::string& bo
         << "<link rel='stylesheet' href='/static/styles.css'>"
         << "</head><body>";
     if (active != "landing") {
-        out << "<header class='site-header'><div class='container nav-wrap'>";
+        out << "<header class='site-header " << (admin ? "admin-header" : "public-header") << "'><div class='container nav-wrap'>";
         if (active == "dashboard") {
-            out << "<div class='account-header'><div class='account-brand'>InternStart</div><details class='account-menu'><summary>" << htmlEscape(user_email.empty() ? "Аккаунт" : user_email.substr(0, 1)) << "</summary><div class='account-menu-panel'><span>" << htmlEscape(user_email) << "</span><form method='post' action='/logout'><button class='btn btn-light btn-small'>Выйти</button></form></div></details></div>";
+            out << "<div class='account-header'><div class='account-brand'>InternStart</div>" << accountMenu(user_email) << "</div>";
         } else {
             out << "<nav class='top-switcher" << (admin ? " top-switcher-admin" : "") << "'>";
             if (!admin) {
@@ -123,7 +160,7 @@ std::string PageRenderer::layout(const std::string& title, const std::string& bo
                     << "<a class='" << activeClass(active, "companies") << "' href='/companies'>Компании</a>"
                     << "<a class='" << activeClass(active, "applications") << "' href='/applications'>Мои подачи</a>"
                     << "<a class='" << activeClass(active, "ratings") << "' href='/ratings'>Мои оценки</a>"
-                    << "<details class='account-menu nav-account-menu'><summary>" << htmlEscape(user_email.empty() ? "Аккаунт" : user_email.substr(0, 1)) << "</summary><div class='account-menu-panel'><span>" << htmlEscape(user_email) << "</span><form method='post' action='/logout'><button class='btn btn-light btn-small'>Выйти</button></form></div></details>";
+                    << accountMenu(user_email);
             } else {
                 out << "<a class='" << activeClass(active, "accounts") << "' href='/admin/accounts'>Аккаунты</a>"
                     << "<a class='" << activeClass(active, "admin") << "' href='/admin/internships'>Стажировки</a>"
@@ -137,7 +174,12 @@ std::string PageRenderer::layout(const std::string& title, const std::string& bo
         if (active == "dashboard") out << "</div></header>";
         else out << "</nav></div></header>";
     }
-    out << "<main class='container'>" << body << "</main></body></html>";
+    out << "<main class='container'>" << body << "</main>";
+    if (!admin && active != "landing") {
+        out << mobileTabBar(active, user_email);
+        out << "<script>(()=>{const closePeers=(current)=>{document.querySelectorAll('details.account-menu[open]').forEach((item)=>{if(item!==current)item.removeAttribute('open');});};document.querySelectorAll('details.account-menu').forEach((menu)=>{menu.addEventListener('toggle',()=>{if(menu.open)closePeers(menu);});});document.querySelectorAll('.account-notifications').forEach((button)=>{button.addEventListener('click',async(event)=>{event.preventDefault();event.stopPropagation();const menu=button.closest('details.account-menu');const panel=menu.querySelector('.account-notification-panel');panel.classList.toggle('is-hidden');if(panel.classList.contains('is-hidden')||panel.dataset.loaded)return;try{const response=await fetch('/notifications');panel.innerHTML=await response.text();panel.dataset.loaded='1';}catch(e){panel.innerHTML='<p class=\"muted\">Не удалось загрузить уведомления.</p>';}});});})();</script>";
+    }
+    out << "</body></html>";
     return out.str();
 }
 
@@ -445,6 +487,46 @@ Response PublicController::companyDetail(const std::string& slug, const Request&
     return response;
 }
 
+Response PublicController::notifications(const Request& request) const {
+    Row user = currentUser(request);
+    Response response;
+    if (user.empty()) {
+        response.status = 403;
+        response.body = "<p class='muted'>Нужно войти.</p>";
+        return response;
+    }
+    const std::string today = nowIso().substr(0, 10);
+    // Задачи с датой выполнения
+    auto task_rows = db_.query(
+        "SELECT a.*, i.title AS internship_title, COALESCE(c.name, i.company_name) AS company_display_name, "
+        "(SELECT h.event_note FROM application_history h WHERE h.attempt_id=a.id AND h.event_type!='completion' ORDER BY h.id DESC LIMIT 1) AS task_note "
+        "FROM application_attempts a JOIN internships i ON i.id=a.internship_id LEFT JOIN companies c ON c.id=i.company_id "
+        "WHERE a.user_id=? AND a.marker_enabled=1 AND a.stage_completed=0 AND a.next_step_date IS NOT NULL AND a.next_step_date!='' "
+        "ORDER BY a.next_step_date, a.next_step_time, i.title LIMIT 10",
+        {user["id"]});
+    std::ostringstream b;
+    b << "<div class='notification-head'><strong>Уведомления</strong><span>" << today << "</span></div>";
+    b << "<section class='notification-section'><h3>Список задач</h3>";
+    if (task_rows.empty()) {
+        b << "<p class='notification-empty'>Задач с датой выполнения нет.</p>";
+    } else {
+        b << "<div class='notification-list'>";
+        for (const auto& row : task_rows) {
+            bool overdue = row.at("next_step_date") < today;
+            b << "<a class='notification-item" << (overdue ? " notification-item-overdue" : "") << "' href='/applications/" << row.at("id") << "/edit'><strong>"
+              << (overdue ? "Просрочено: " : "") << htmlEscape(displayDate(row.at("next_step_date")))
+              << (!row.at("next_step_time").empty() ? " " + htmlEscape(row.at("next_step_time")) : "") << "</strong><span>"
+              << htmlEscape(row.at("internship_title")) << " · " << htmlEscape(row.at("company_display_name")) << "</span>";
+            if (!row.at("task_note").empty()) b << "<em>" << htmlEscape(row.at("task_note")) << "</em>";
+            b << "</a>";
+        }
+        b << "</div>";
+    }
+    b << "</section>";
+    response.body = b.str();
+    return response;
+}
+
 Response PublicController::myRatings(const Request& request) const {
     Row user = currentUser(request);
     CompanyReviewRepository reviews(db_);
@@ -579,6 +661,7 @@ Response ApplicationController::newInternship(const Request& request) const {
 
 Response ApplicationController::board() const {
     ApplicationRepository applications(db_);
+    // Подачи пользователя для канбан-доски
     auto rows = applications.board(user_id_);
     const std::vector<ApplicationStatus> statuses = {
         ApplicationStatus::WantToApply,
@@ -604,13 +687,21 @@ Response ApplicationController::board() const {
             if (row.at("status") != status_text) continue;
             b << "<article class='kanban-card company-themed' data-app-id='" << row.at("id") << "' draggable='true'>"
               << "<a class='kanban-card-link' href='/applications/" << row.at("id") << "/edit'><h3>" << htmlEscape(row.at("internship_title")) << "</h3>"
-              << "<p class='muted'><strong>Подача №1</strong></p><p class='muted'>" << htmlEscape(row.at("company_display_name")) << "</p>";
-            if (!row.at("next_step_date").empty()) {
-                b << "<p class='kanban-due-date'>Выполнить: " << htmlEscape(displayDate(row.at("next_step_date"))) << "</p>";
-            }
+              << "<p class='muted'>";
+            if (row.at("attempt_count") != "1") b << "<strong>Подача №" << htmlEscape(row.at("attempt_number")) << "</strong> · ";
+            b << htmlEscape(row.at("company_display_name")) << "</p>";
             if (row.at("marker_enabled") == "1") {
-                b << "<p class='muted kanban-meta-line'><span class='stage-pill " << (row.at("stage_completed") == "1" ? "stage-pill-done" : "stage-pill-pending") << "'>"
-                  << (row.at("stage_completed") == "1" ? "Выполнено" : "Не выполнено") << "</span></p>";
+                if (row.at("stage_completed") == "1") {
+                    b << "<p class='muted kanban-meta-line'><span class='stage-pill stage-pill-done'>Выполнено</span></p>";
+                } else if (!row.at("next_step_date").empty()) {
+                    b << "<p class='kanban-due-date'>Выполнить: " << htmlEscape(displayDate(row.at("next_step_date"))) << "</p>";
+                } else {
+                    b << "<p class='muted kanban-meta-line'><span class='stage-pill stage-pill-pending'>Не выполнено</span></p>";
+                }
+            }
+            // Задача по текущему этапу
+            if (!row.at("task_note").empty()) {
+                b << "<p class='kanban-task-note'>" << htmlEscape(row.at("task_note")) << "</p>";
             }
             b << "</a></article>";
         }
@@ -737,13 +828,8 @@ Response ApplicationController::edit(int attempt_id, const Request& request) con
             }
             b << "</div>";
             if (is_current) {
-                if (!event.at("event_note").empty()) {
-                    b << "<button class='timeline-inline-comment-read timeline-comment-toggle timeline-comment-inline-trigger' type='button' data-target='event-comment-" << event.at("id") << "'>" << htmlEscape(event.at("event_note")) << "</button>";
-                } else {
-                    b << "<button class='btn btn-light btn-small timeline-comment-toggle' type='button' data-target='event-comment-" << event.at("id") << "'>Добавить комментарий</button>";
-                }
-                b << "<form method='post' action='/applications/" << attempt.at("id") << "/events/" << event.at("id") << "/comment' class='timeline-inline-comment-form is-hidden' id='event-comment-" << event.at("id") << "'>"
-                  << "<textarea name='event_note' rows='1' maxlength='500' class='timeline-inline-comment-input' placeholder='Комментарий к этому этапу'>" << htmlEscape(event.at("event_note")) << "</textarea>"
+                b << "<form method='post' action='/applications/" << attempt.at("id") << "/events/" << event.at("id") << "/comment' class='timeline-inline-comment-form' id='event-comment-" << event.at("id") << "'>"
+                  << "<textarea name='event_note' rows='1' maxlength='500' class='timeline-inline-comment-input' placeholder='Задача по этому этапу'>" << htmlEscape(event.at("event_note")) << "</textarea>"
                   << "<div class='timeline-inline-actions'><button class='btn btn-light btn-small' type='submit'>Сохранить</button></div></form>";
             } else if (!event.at("event_note").empty()) {
                 b << "<div class='timeline-inline-comment-read'>" << htmlEscape(event.at("event_note")) << "</div>";
@@ -826,19 +912,27 @@ Response AdminController::requireAdmin(const Request& request) const {
 }
 
 Response AdminController::login(const Request& request) const {
+    bool invalid_credentials = false;
     if (request.method == "POST") {
-        if (field(request.form, "username") == "adminv" && field(request.form, "password") == "adminv_password124") {
+        const std::string admin_username = envOr("ADMIN_USERNAME", "admin");
+        const std::string admin_password = envOr("ADMIN_PASSWORD", "change_me");
+        if (field(request.form, "username") == admin_username && field(request.form, "password") == admin_password) {
             Response response = redirectTo("/admin/accounts");
             response.headers.push_back("Set-Cookie: admin_auth=1; Path=/; HttpOnly; SameSite=Lax");
             return response;
         }
+        invalid_credentials = true;
     }
     std::ostringstream b;
     b << "<section class='admin-login-page'><div class='admin-login-card'>"
       << "<div><p class='eyebrow'>InternStart Admin</p><h1>Вход в админ-панель</h1><p class='muted'>Управление компаниями, стажировками и направлениями без регистрации.</p></div>"
-      << "<form method='post' class='auth-form admin-login-form'>"
-      << "<label>Логин<input name='username' placeholder='adminv' autocomplete='username'></label>"
-      << "<label>Пароль<input name='password' type='password' placeholder='Пароль' autocomplete='current-password'></label>"
+      << "<form method='post' class='auth-form admin-login-form' autocomplete='off'>";
+    if (invalid_credentials) {
+        b << "<p class='auth-message auth-message-error'>Пароль неверный.</p>";
+    }
+    b
+      << "<label>Логин<input name='username' autocomplete='off' required></label>"
+      << "<label>Пароль<input name='password' type='password' autocomplete='new-password' required></label>"
       << "<button class='btn btn-auth'>Войти</button></form></div></section>";
     Response response;
     response.body = renderer_.layout("Админка", b.str(), true, "landing");
@@ -985,9 +1079,10 @@ Response AdminController::companies(const Request& request) const {
     CompanyRepository companies(db_);
     auto rows = companies.adminList();
     std::ostringstream b;
-    b << "<div class='page-head'><h1>Компании</h1><a class='btn' href='/admin/companies/new'>+ Новая</a></div><div class='table-wrap'><table><thead><tr><th>ID</th><th>Название</th><th>Slug</th><th>Активна</th><th></th></tr></thead><tbody>";
+    b << "<div class='page-head'><h1>Компании</h1><a class='btn' href='/admin/companies/new'>+ Новая</a></div><div class='table-wrap'><table><thead><tr><th>ID</th><th>Название</th><th>Slug</th><th>Активна</th><th>Стажировок</th><th></th></tr></thead><tbody>";
     for (const auto& row : rows) {
-        b << "<tr><td>" << row.at("id") << "</td><td>" << htmlEscape(row.at("name")) << "</td><td>" << htmlEscape(row.at("slug")) << "</td><td>" << (row.at("is_active") == "1" ? "Да" : "Нет") << "</td><td class='table-actions'><a class='btn btn-small btn-light' href='/admin/companies/" << row.at("id") << "/edit'>Редактировать</a></td></tr>";
+        b << "<tr><td>" << row.at("id") << "</td><td>" << htmlEscape(row.at("name")) << "</td><td>" << htmlEscape(row.at("slug")) << "</td><td>" << (row.at("is_active") == "1" ? "Да" : "Нет") << "</td><td>" << row.at("internships_count") << "</td><td class='table-actions'><a class='btn btn-small btn-light' href='/admin/companies/" << row.at("id") << "/edit'>Редактировать</a>"
+          << "<form method='post' action='/admin/companies/" << row.at("id") << "/delete' onsubmit=\"return confirm('Удалить компанию?');\"><button class='btn btn-small btn-danger'>Удалить</button></form></td></tr>";
     }
     b << "</tbody></table></div>";
     Response response;
@@ -1003,13 +1098,12 @@ std::string AdminController::companyForm(const Row& row, const std::string& acti
     std::ostringstream b;
     b << "<form class='admin-form' method='post' action='" << action << "'>"
       << "<label>Название</label><input name='name' value='" << val("name") << "'>"
-      << "<label>Slug</label><input name='slug' value='" << val("slug") << "'>"
       << "<label>Сайт</label><input name='website_url' value='" << val("website_url") << "'>"
       << "<label>Карьера</label><input name='career_url' value='" << val("career_url") << "'>"
       << "<label>Описание</label><textarea name='description'>" << val("description") << "</textarea>"
       << "<label>О стажировках</label><textarea name='internship_info'>" << val("internship_info") << "</textarea>"
       << "<label>Особенности подачи</label><textarea name='application_notes'>" << val("application_notes") << "</textarea>"
-      << "<label>Цвет</label><input name='accent_color' value='" << val("accent_color", "#0e7490") << "'>"
+      << "<label>Цвет</label><div class='color-picker-row'><input class='color-picker-square' name='accent_color' type='color' value='" << val("accent_color", "#0e7490") << "'></div>"
       << "<button class='btn'>Сохранить</button></form>";
     return b.str();
 }
@@ -1038,6 +1132,14 @@ Response AdminController::editCompany(int id, const Request& request) const {
     Response response;
     response.body = renderer_.layout("Редактирование компании", companyForm(companies.findById(id), request.path), true, "companies");
     return response;
+}
+
+Response AdminController::deleteCompany(int id, const Request& request) const {
+    Response guard = requireAdmin(request);
+    if (guard.status == 302) return guard;
+    CompanyRepository companies(db_);
+    companies.remove(id);
+    return redirectTo("/admin/companies");
 }
 
 Response AdminController::directions(const Request& request) const {
@@ -1077,8 +1179,8 @@ Response AdminController::imports(const Request& request) const {
     Response guard = requireAdmin(request);
     if (guard.status == 302) return guard;
     std::ostringstream b;
-    b << "<div class='page-head'><h1>Импорт</h1></div><div class='card'><p><strong>Интеграции выпилены</strong></p>"
-      << "<p>Работа России, OpenRouter и прочие внешние API удалены из текущего backend. Вернем их позже отдельным сервисным слоем.</p></div>";
+    b << "<div class='page-head'><h1>Импорт</h1></div><div class='card'><p><strong>Импорт недоступен</strong></p>"
+      << "<p>Сетевой импорт удален из текущего backend. Его можно вернуть позже отдельным сервисным слоем.</p></div>";
     Response response;
     response.body = renderer_.layout("Админка | Импорт", b.str(), true, "imports");
     return response;

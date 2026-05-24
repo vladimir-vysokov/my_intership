@@ -30,6 +30,7 @@ public:
     Response internshipDetail(int id, const Request& request) const;
     Response companies(const Request& request) const;
     Response companyDetail(const std::string& slug, const Request& request) const;
+    Response notifications(const Request& request) const;
     Response myRatings(const Request& request) const;
     Response rateCompany(int company_id, const Request& request) const;
 
@@ -79,6 +80,7 @@ public:
     Response companies(const Request& request) const;
     Response newCompany(const Request& request) const;
     Response editCompany(int id, const Request& request) const;
+    Response deleteCompany(int id, const Request& request) const;
     Response directions(const Request& request) const;
     Response toggleDirection(int id, const Request& request) const;
     Response imports(const Request& request) const;

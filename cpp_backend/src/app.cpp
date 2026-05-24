@@ -51,9 +51,11 @@ Application::Application() {
 
 int Application::run() {
     try {
+        // Инициализация базы данных
         Database db(db_path_);
         initializeSchema(db);
 
+        // Запуск маршрутизатора и локального HTTP-сервера
         Router router(db_path_, base_dir_);
         HttpServer server(host_, port_);
         server.listenAndServe([&router](const Request& request) {
