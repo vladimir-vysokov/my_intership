@@ -1,6 +1,6 @@
 # Моя стажировка
 
-MVP: stazhirovka.rest
+MVP: https://stazhirovka.rest
 
 Отчёт в Google Documents: https://clck.ru/3TxSQU
 
